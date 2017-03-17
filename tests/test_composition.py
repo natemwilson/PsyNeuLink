@@ -1,6 +1,6 @@
 import time
 
-from PsyNeuLink.Components.composition import Composition
+from PsyNeuLink.composition import Composition
 from PsyNeuLink.Components.Mechanisms.Mechanism import mechanism
 from PsyNeuLink.Components.Projections.MappingProjection import MappingProjection
 from PsyNeuLink.Components.Mechanisms.ProcessingMechanisms.TransferMechanism import TransferMechanism
@@ -12,36 +12,37 @@ test_add_projection = False
 test_analyze_graph = False
 test_validate_feed_dict = False
 
-# All tests are set to run. If you need to skip certain tests
+# All tests are set to run. If you need to skip certain tests,
+# see http://doc.pytest.org/en/latest/skipping.html
 
 # Unit tests for each function of the Composition class #######################
 # Unit tests for Composition.Composition()
 
-if test_constructor:
-    print("Constructor Tests:")
+class TestConstructor:
+    def test_no_args(self):
+        comp = Composition()
+        assert isinstance(comp, Composition)
 
-    print("Test 1: No args")
-    comp = composition.Composition()
-    assert isinstance(comp, composition.Composition)
-    print("passed")
+    def test_two_calls_no_args(self):
+        comp = Composition()
+        assert isinstance(comp, Composition)
 
-    print("Test 2: Second call no args")
-    comp_2 = composition.Composition()
-    assert isinstance(comp, composition.Composition)
-    print("passed")
+        comp_2 = Composition()
+        assert isinstance(comp, Composition)
+
 
     print("Test 3: Timing no args")
     count = 10000
     start = time.time()
     for i in range(count):
-        comp = composition.Composition()
+        comp = Composition()
     end = time.time()
     print("passed in " + str(end-start) + " seconds for " + str(count) + " calls")
 
 # Unit tests for Composition.add_mechanism
 if test_add_mechanism:
     print("\n" + "add_mechanism tests:")
-    comp = composition.Composition()
+    comp = Composition()
 
     print("Test 1: Basic Test")
     comp.add_mechanism(mechanism())
@@ -73,7 +74,7 @@ if test_add_projection:
     print("\n" + "add_projection tests:")
 
     print("Test 1: Basic Test")
-    comp = composition.Composition()
+    comp = Composition()
     A = mechanism()
     B = mechanism()
     comp.add_mechanism(A)
@@ -86,7 +87,7 @@ if test_add_projection:
     print("passed")
 
     print("Test 3: Adding same projection twice")
-    comp = composition.Composition()
+    comp = Composition()
     A = mechanism()
     B = mechanism()
     comp.add_mechanism(A)
@@ -97,7 +98,7 @@ if test_add_projection:
     print("passed")
 
     print("Test 4: Timing and Stress Test")
-    comp = composition.Composition()
+    comp = Composition()
     A = mechanism()
     B = mechanism()
     comp.add_mechanism(A)
@@ -117,12 +118,12 @@ if test_analyze_graph:
     print("\n" + "analyze_graph tests:")
 
     print("Test 1: Empty Call")
-    comp = composition.Composition()
+    comp = Composition()
     comp.analyze_graph()
     print("passed")
 
     print("Test 2: Singleton")
-    comp = composition.Composition()
+    comp = Composition()
     A = mechanism()
     comp.add_mechanism(A)
     comp.analyze_graph()
@@ -132,7 +133,7 @@ if test_analyze_graph:
     print("passed")
 
     print("Test 3: Two independent")
-    comp = composition.Composition()
+    comp = Composition()
     A = mechanism()
     B = mechanism()
     comp.add_mechanism(A)
@@ -145,7 +146,7 @@ if test_analyze_graph:
     print("passed")
 
     print("Test 4: Two in a row")
-    comp = composition.Composition()
+    comp = Composition()
     A = mechanism()
     B = mechanism()
     comp.add_mechanism(A)
@@ -159,7 +160,7 @@ if test_analyze_graph:
     print("passed")
 
     print("Test 5: Two recursive (A)<->(B)")
-    comp = composition.Composition()
+    comp = Composition()
     A = mechanism()
     B = mechanism()
     comp.add_mechanism(A)
@@ -176,7 +177,7 @@ if test_analyze_graph:
     print("passed")
 
     print("Test 6: Two origins pointing to recursive pair (A)->(B)<->(C)<-(D)")
-    comp = composition.Composition()
+    comp = Composition()
     A = mechanism()
     B = mechanism()
     C = mechanism()
@@ -201,7 +202,7 @@ if test_validate_feed_dict:
     print("\n" + "validate_feed_dict tests:")
 
     print("Test 1: Origin & Terminal Mechanisms w/ Mapping Projection")
-    comp = composition.Composition()
+    comp = Composition()
     A = mechanism()
     B = mechanism()
     comp.add_mechanism(A)
@@ -215,7 +216,7 @@ if test_validate_feed_dict:
     print("passed")
 
     print("Test 2: Empty Feed Dicts")
-    comp = composition.Composition()
+    comp = Composition()
     A = mechanism()
     B = mechanism()
     comp.add_mechanism(A)
@@ -230,7 +231,7 @@ if test_validate_feed_dict:
 
 
     print("Test 3: Origin & Terminal Mechanisms w/ Swapped Feed Dicts")
-    comp = composition.Composition()
+    comp = Composition()
     A = mechanism()
     B = mechanism()
     comp.add_mechanism(A)
@@ -249,7 +250,7 @@ if test_validate_feed_dict:
         print("passed (2/2)")
 
     print("Test 4: Multiple Origin Mechanisms")
-    comp = composition.Composition()
+    comp = Composition()
     A = mechanism()
     B = mechanism()
     C = mechanism()
@@ -266,7 +267,7 @@ if test_validate_feed_dict:
     print("passed")
 
     print("Test 5: Multiple Origin Mechanisms, Only 1 in Feed Dict")
-    comp = composition.Composition()
+    comp = Composition()
     A = mechanism()
     B = mechanism()
     C = mechanism()
@@ -284,7 +285,7 @@ if test_validate_feed_dict:
 
 
     print("Test 6: Input State Length 3")
-    comp = composition.Composition()
+    comp = Composition()
     A = TransferMechanism(default_input_value=[0,1,2])
     B = mechanism()
     comp.add_mechanism(A)
@@ -298,7 +299,7 @@ if test_validate_feed_dict:
     print("passed")
 
     print("Test 7: Input State Length 3; Length 2 in Feed Dict")
-    comp = composition.Composition()
+    comp = Composition()
     A = TransferMechanism(default_input_value=[0,1,2])
     B = mechanism()
     comp.add_mechanism(A)
@@ -313,7 +314,7 @@ if test_validate_feed_dict:
         print("passed")
 
     print("Test 8: Input State Length 2; Length 3 in Feed Dict")
-    comp = composition.Composition()
+    comp = Composition()
     A = TransferMechanism(default_input_value=[0,1])
     B = mechanism()
     comp.add_mechanism(A)
@@ -328,7 +329,7 @@ if test_validate_feed_dict:
         print("passed")
 
     print("Test 9: Feed Dict Includes Mechanisms of the Correct & Incorrect Types")
-    comp = composition.Composition()
+    comp = Composition()
     A = TransferMechanism(default_input_value=[0])
     B = mechanism()
     comp.add_mechanism(A)
@@ -342,7 +343,7 @@ if test_validate_feed_dict:
         print("passed")
 
     print("Test 10: Input State Length 3, 1 Set of Extra Brackets")
-    comp = composition.Composition()
+    comp = Composition()
     A = TransferMechanism(default_input_value=[0,1,2])
     B = mechanism()
     comp.add_mechanism(A)
@@ -357,7 +358,7 @@ if test_validate_feed_dict:
 
 
     print("Test 11: Input State Length 3, 1 Set of Missing Brackets")
-    comp = composition.Composition()
+    comp = Composition()
     A = TransferMechanism(default_input_value=[0,1,2])
     B = mechanism()
     comp.add_mechanism(A)
@@ -373,7 +374,7 @@ if test_validate_feed_dict:
 
 
     print("Test 12: Empty Feed Dict For Empty Type")
-    comp = composition.Composition()
+    comp = Composition()
     A = TransferMechanism(default_input_value=[0])
     B = mechanism()
     comp.add_mechanism(A)
@@ -386,7 +387,7 @@ if test_validate_feed_dict:
     print("passed")
 
     print("Test 13: Mechanism in Feed Dict For Empty Type")
-    comp = composition.Composition()
+    comp = Composition()
     A = TransferMechanism(default_input_value=[0])
     B = mechanism()
     comp.add_mechanism(A)
@@ -401,7 +402,7 @@ if test_validate_feed_dict:
         print("passed")
 
     print("Test 14: One Mechanism")
-    comp = composition.Composition()
+    comp = Composition()
     A = TransferMechanism(default_input_value=[0])
     comp.add_mechanism(A)
     comp.analyze_graph()
@@ -414,7 +415,7 @@ if test_validate_feed_dict:
 
 
     print("Test 15: Multiple Time Steps")
-    comp = composition.Composition()
+    comp = Composition()
     A = TransferMechanism(default_input_value=[[0,1,2]])
     B = mechanism()
     comp.add_mechanism(A)
@@ -428,7 +429,7 @@ if test_validate_feed_dict:
     print("passed")
 
     print("Test 16: Multiple Time Steps")
-    comp = composition.Composition()
+    comp = Composition()
     A = TransferMechanism(default_input_value=[[0,1,2]])
     B = mechanism()
     comp.add_mechanism(A)

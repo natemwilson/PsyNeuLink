@@ -26,6 +26,7 @@ from PsyNeuLink.Globals.Preferences.ComponentPreferenceSet import ComponentPrefe
 
 __all__ = ['System',
            'system',
+           'composition',
            'process',
            'CentralClock',
            'TransferMechanism',
