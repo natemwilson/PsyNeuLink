@@ -1,6 +1,7 @@
 from collections import OrderedDict, Iterable
 import itertools
-# Needs to be created still| from PsyNeuLink.scheduling import Scheduler
+from PsyNeuLink.scheduling.constraint_scheduler import Scheduler
+from PsyNeuLink.Components.Functions.Function import LINEAR_MATRIX_FUNCTION
 
 class Edge(object):
     ########
@@ -102,6 +103,7 @@ class Composition(object):
         self.explicit_output_mechanisms = [] # Need to track to know which to leave untouched
         self.all_output_mechanisms = []
         self.target_mechanisms = [] # Do not need to track explicit as they mush be explicit
+        self.sched = Scheduler()
 
     def add_mechanism(self, mech):
         ########
@@ -115,7 +117,7 @@ class Composition(object):
     def add_projection(self, sender, projection, receiver):
         ########
         # Adds a new Projection to the Composition.
-        # If the projection has allready been added, passes.
+        # If the projection has already been added, passes.
         ########
         # Ensures that the projection does not already exist in the graph at this place
         if any([edge.projection is projection for edge in self.graph.get_incoming(receiver)]):
@@ -266,8 +268,30 @@ class Composition(object):
                         raise ValueError("The value provided for input state {!s} of the mechanism \"{}\" has length {!s} \
                             where the input state takes values of length {!s}".format(i, mech.name, val_length, state_length))
 
-    def run(self, inputs = None, targets = None, recurrent_init = None):
+    def run(self, scheduler, inputs = None, targets = None, recurrent_init = None):
 
-        self.validate_feed_dict(inputs, self.origin_mechanisms, "Inputs")
-        self.validate_feed_dict(targets, self.target_mechanisms, "Targets")
-        self.validate_feed_dict(recurrent_init, self.recurrent_init_mechanisms, "Recurrent Init")
+        if inputs:
+            self.validate_feed_dict(inputs, self.origin_mechanisms, "Inputs")
+        if targets:
+            self.validate_feed_dict(targets, self.target_mechanisms, "Targets")
+        if recurrent_init:
+            self.validate_feed_dict(recurrent_init, self.recurrent_init_mechanisms, "Recurrent Init")
+
+        for current_component in scheduler.run_trial():
+            if current_component.name != "Clock":
+                # print("NAME: ",current_component.name)
+                current_vertex = self.graph.mech_to_vertex[current_component]
+                # print("INCOMING PROJECTION: ", current_vertex.incoming)
+                # print("OUTGOING PROJECTION: ", current_vertex.outgoing)
+                if current_component in inputs.keys():
+                    # print(current_component.name, " was found in inputs")
+                    new_value = current_component.execute(inputs[current_component])
+                    # for edge in current_vertex.outgoing:
+                    #     edge.projection.execute(new_value)
+
+                else:
+                    current_component.execute()
+                # print(current_component.value)
+            else:
+                current_component.execute()
+                # print(current_component.value)
