@@ -1,23 +1,23 @@
-import time
+import logging
+
+from timeit import timeit
 
 from PsyNeuLink.composition import Composition
 from PsyNeuLink.Components.Mechanisms.Mechanism import mechanism
 from PsyNeuLink.Components.Projections.MappingProjection import MappingProjection
 from PsyNeuLink.Components.Mechanisms.ProcessingMechanisms.TransferMechanism import TransferMechanism
 
-
-test_constructor = False
-test_add_mechanism = False
-test_add_projection = False
-test_analyze_graph = False
-test_validate_feed_dict = False
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # All tests are set to run. If you need to skip certain tests,
 # see http://doc.pytest.org/en/latest/skipping.html
 
 # Unit tests for each function of the Composition class #######################
 # Unit tests for Composition.Composition()
-
 class TestConstructor:
     def test_no_args(self):
         comp = Composition()
@@ -31,44 +31,43 @@ class TestConstructor:
         assert isinstance(comp, Composition)
 
 
-    print("Test 3: Timing no args")
-    count = 10000
-    start = time.time()
-    for i in range(count):
-        comp = Composition()
-    end = time.time()
-    print("passed in " + str(end-start) + " seconds for " + str(count) + " calls")
+    def test_timing_no_args(self):
+        count = 10000
+        t = timeit('comp = Composition()', setup='from PsyNeuLink.composition import Composition', number=count)
+        logger.info('completed {0} creation{2} of Composition() in {1}s'.format(count, t, 's' if count != 1 else ''))
 
 # Unit tests for Composition.add_mechanism
-if test_add_mechanism:
-    print("\n" + "add_mechanism tests:")
-    comp = Composition()
+class TestAddMechanism:
 
-    print("Test 1: Basic Test")
-    comp.add_mechanism(mechanism())
-    print("passed")
+    def test_add_once(self):
+        comp = Composition()
+        comp.add_mechanism(mechanism())
 
-    print("Test 2: Second call")
-    comp.add_mechanism(mechanism())
-    print("passed")
+    def test_add_twice(self):
+        comp = Composition()
+        comp.add_mechanism(mechanism())
+        comp.add_mechanism(mechanism())
 
-    print("Test 3: Adding same mechanism twice")
-    mech = mechanism()
-    comp.add_mechanism(mech)
-    comp.add_mechanism(mech)
-    print("passed")
+    def test_add_same_twice(self):
+        comp = Composition()
+        mech = mechanism()
+        comp.add_mechanism(mech)
+        comp.add_mechanism(mech)
 
-    print("Test 4: Timing and Stress Test")
-    count = 100
-    mech_list = []
-    for i in range(count):
-        mech_list.append(mechanism())
-    start = time.time()
-    for i in range(count):
-        comp.add_mechanism(mech_list[i])
-    end = time.time()
-    print("passed in " + str(end-start) + " seconds for " + str(count) + " calls")
+    def test_timing_stress(self):
+        for j in range(8):
+            count = j
+            t = timeit('for i in range(count):\n comp.add_mechanism(mechanism())',
+                setup='''
+from PsyNeuLink.composition import Composition
+from PsyNeuLink.Components.Mechanisms.Mechanism import mechanism
+comp=Composition()
+count={0}'''.format(count),
+                number=count
+            )
+            logger.info('completed {0} addition{2} of a mechanism to a composition in {1}s'.format(count, t, 's' if count != 1 else ''))
 
+'''
 # Unit tests for Composition.add_projection
 if test_add_projection:
     print("\n" + "add_projection tests:")
@@ -441,3 +440,4 @@ if test_validate_feed_dict:
     comp.validate_feed_dict(feed_dict_origin, comp.origin_mechanisms, "origin")
     comp.validate_feed_dict(feed_dict_terminal, comp.terminal_mechanisms, "terminal")
     print("passed")
+'''
