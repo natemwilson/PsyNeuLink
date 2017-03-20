@@ -34,7 +34,7 @@ class TestConstructor:
     def test_timing_no_args(self):
         count = 10000
         t = timeit('comp = Composition()', setup='from PsyNeuLink.composition import Composition', number=count)
-        logger.info('completed {0} creation{2} of Composition() in {1}s'.format(count, t, 's' if count != 1 else ''))
+        logger.info('completed {0} creation{2} of Composition() in {1:.8f}s'.format(count, t, 's' if count != 1 else ''))
 
 # Unit tests for Composition.add_mechanism
 class TestAddMechanism:
@@ -55,17 +55,16 @@ class TestAddMechanism:
         comp.add_mechanism(mech)
 
     def test_timing_stress(self):
-        for j in range(8):
-            count = j
-            t = timeit('for i in range(count):\n comp.add_mechanism(mechanism())',
+        for j in range(7):
+            t = timeit('for i in range(j):\n comp.add_mechanism(mechanism())',
                 setup='''
 from PsyNeuLink.composition import Composition
 from PsyNeuLink.Components.Mechanisms.Mechanism import mechanism
 comp=Composition()
-count={0}'''.format(count),
-                number=count
+j={0}'''.format(j),
+                number=j
             )
-            logger.info('completed {0} addition{2} of a mechanism to a composition in {1}s'.format(count, t, 's' if count != 1 else ''))
+            logger.info('completed {0} addition{2} of a mechanism to a composition in {1:.8f}s'.format(j, t, 's' if j != 1 else ''))
 
 '''
 # Unit tests for Composition.add_projection
