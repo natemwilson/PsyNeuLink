@@ -1,3 +1,20 @@
+class Condition(object):
+    def __init__(self, dependencies, func):
+        '''
+        :param self:
+        :param dependencies: parameters over which func is evaluated to determine satisfaction of the :keyword:`Condition`
+        :param func: parameters over which func is evaluated to determine satisfaction of the :keyword:`Condition`
+        '''
+        self.dependencies = dependencies
+        self.func = func
+
+    def is_satisfied(self):
+        return self.func(self.dependencies)
+
+class ConditionBeginImmediately(Condition):
+    def __init__(self):
+        super().__init__(True, lambda x: x)
+
 
 def every_n_calls(n, time_scale = 'trial'):
     """
