@@ -1,5 +1,5 @@
 class Scheduler(object):
-    def __init__(self, components={}, constraints={}):
+    def __init__(self, components={}, constraints=set()):
         '''
         :param self:
         :param components: (dict) - a dictionary mapping each component to its priority
@@ -7,6 +7,15 @@ class Scheduler(object):
         '''
         self.components = components
         self.constraints = constraints
+        #self.constraints_dict = {x: set() for x in components}
+        self.constraints_inactive = constraints
+        self.constraints_active = set()
+        self.constraints_terminated = set()
+
+        self.current_time_step = 0
+
+        #for c in constraints:
+        #    self.constraints_dict[c.owner].add(c)
 
     def run_time_step(self):
         #######
@@ -14,70 +23,37 @@ class Scheduler(object):
         # Initializes a firing queue, then continuously executes mechanisms and updates queue according to any
         # constraints that were satisfied by the previous execution
         #######
-        def update_dependent_vars(variable):
-            #######
-            # Takes in the ScheduleVariable of the mechanism that *just* ran
-            # Loops through all of the constraints that depend on this mechanism
-            # Returns a list ('change_list') of all of the ScheduleVariables (mechanisms) that own a constraint which
-            # was satisfied by this mechanism's run
-            #######
 
-            change_list = []
-
-            for con_set in variable.dependent_constraint_sets:
-                for con in con_set:
-                    if isinstance(con.owner, Scheduler):        # special case where the constraint is on the Scheduler
-                        if con.is_satisfied():                  # If the constraint is satisfied, end trial
-                            self.trial_terminated = True
-
-                    elif con_set not in con.owner.filled_constraint_sets: # typical case where the constraint is on a ScheduleVariable
-                        if con.owner.evaluate_constraint_set(con_set) and con.owner not in change_list:  # If the constraint set is satisfied, pass owner to change list
-                            change_list.append(con.owner)
-                    change_list.sort(key=lambda x:x.priority)   # sort change list according to priority
-
-            return change_list
-
-        def update_firing_queue(firing_queue, change_list):
-            ######
-            # Takes in the current firing queue & list of schedule variables that own a recently satisfied constraint
-            # Any ScheduleVariable with no remaining constraints is added to the firing queue
-            ######
-
-            for var in change_list:
-                if len(var.filled_constraint_sets) == len(var.own_constraint_sets):
-                    firing_queue.append(var)
-            return firing_queue
-
+        self.current_time_step += 1
         # reset all mechanisms for this time step
-        for var in self.var_list:
-            var.new_time_step()
-        # initialize firing queue by adding clock
-        firing_queue = [self.clock]
-        for var in firing_queue:
+        for comp in self.components:
+            comp.new_time_step()
 
-            yield var
+        firing_queue = set()
+        for cons in list(self.constraints_inactive):
+            if cons.condition_activation.is_satisfied():
+                self.constraints_active.add(cons)
+                self.constraints_inactive.remove(cons)
+        for cons in list(self.constraints_active):
+            if cons.condition_termination.is_satisfied():
+                self.constraints_terminated.add(cons)
+                self.constraints_active.remove(cons)
+            else:
+                if cons.condition_repeat.is_satisfied():
+                    firing_queue.add(comp)
 
-            if (var is not self.clock):
-                print(var.component.name, end='')
-
-            change_list = update_dependent_vars(var)
-            firing_queue = update_firing_queue(firing_queue, change_list)
-        print('', end=' ')
+        return firing_queue
 
 
-    def run_trial(self):
+    def run_trial(self, condition_termination):
         ######
         # Resets all mechanisms, then calls self.run_time_step() until the terminal mechanism runs
         ######
 
-        for var in self.var_list:
-            var.new_trial()
-        self.trial_terminated = False
-        while (not self.trial_terminated):
-            for var in self.run_time_step():
-                yield var.component
-            print()
-
+        for c in self.components:
+            c.new_trial()
+        while not condition_termination.is_satisfied():
+            return self.run_time_step()
 
 
 def main():

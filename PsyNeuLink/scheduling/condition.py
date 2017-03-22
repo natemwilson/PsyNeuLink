@@ -1,8 +1,21 @@
+import logging
+
+from PsyNeuLink.Globals.TimeScale import TimeScale
+from PsyNeuLink import Component
+from PsyNeuLink.scheduling.Scheduler import Scheduler
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 class Condition(object):
     def __init__(self, dependencies, func):
         '''
         :param self:
-        :param dependencies: parameters over which func is evaluated to determine satisfaction of the :keyword:`Condition`
+        :param dependencies: one or more parameters over which func is evaluated to determine satisfaction of the :keyword:`Condition`
+            user must ensure that dependencies are suitable as func parameters 
         :param func: parameters over which func is evaluated to determine satisfaction of the :keyword:`Condition`
         '''
         self.dependencies = dependencies
@@ -11,10 +24,54 @@ class Condition(object):
     def is_satisfied(self):
         return self.func(self.dependencies)
 
-class ConditionBeginImmediately(Condition):
+######################################################################
+# Activation Conditions
+######################################################################
+class BeginImmediately(Condition):
     def __init__(self):
         super().__init__(True, lambda x: x)
 
+######################################################################
+# Repeat Conditions
+######################################################################
+class RepeatAlways(Condition):
+    def __init__(self):
+        super().__init__(True, lambda x: x)
+
+class EveryNSteps(Condition):
+    def __init__(self, dependency, n, time_scale=TimeScale.TIME_STEP):
+        # model this after EndAfterNCalls
+        pass
+
+######################################################################
+# Termination Conditions
+######################################################################
+class EndAfterNCalls(Condition):
+    def __init__(self, dependency, n, time_scale=TimeScale.TRIAL):
+        def func(dependency, n):
+            if isinstance(dependency, Scheduler):
+                return dependency.current_time_step > n
+            elif isinstance(dependency, Component):
+                num_calls = {
+                    TimeScale.TRIAL: dependency.calls_current_trial,
+                    TimeScale.RUN: dependency.calls_current_run - 1,
+                    TimeScale.LIFE: dependency.calls_since_initialization - 1
+                }
+                return num_calls[time_scale] > n
+            else:
+                logger.error('EndAfterNCalls: Unsupported dependency type: {0}'.format(type(dependency)))
+                return True
+        super().__init__(dependency, func)
+
+class EndWhenAllTerminated(Condition):
+    def __init__(self, dependency):
+        def func(dependency):
+            if isinstance(dependency, Scheduler):
+                return len(dependency.constraints_terminated) == len(dependency.constraints)
+            else:
+                logger.error('EndAfterNCalls: Unsupported dependency type: {0}'.format(type(dependency)))
+                return True
+        super().__init__(dependency, func)
 
 def every_n_calls(n, time_scale = 'trial'):
     """

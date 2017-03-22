@@ -15,7 +15,9 @@ class TimeScale(Enum):
     """
     TIME_STEP = 0
     TRIAL = 1
-    BOUNDS = 2 # Used for type checking where TimeScale value is passed
+    RUN = 2
+    LIFE = 3
+    BOUNDS = 4 # Used for type checking where TimeScale value is passed
 
 
 class Clock:
