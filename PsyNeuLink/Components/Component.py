@@ -494,6 +494,9 @@ class Component(object):
 
 #endregion
 
+    def __str__(self):
+        return '{0}({1})'.format(self.__class__.__name__, self.name)
+
     def _deferred_init(self, context=None):
         """Use in subclasses that require deferred initialization
         """
