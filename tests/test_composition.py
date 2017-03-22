@@ -34,11 +34,11 @@ class TestConstructor:
     def test_timing_no_args(self):
         count = 10000
         t = timeit('comp = Composition()', setup='from PsyNeuLink.composition import Composition', number=count)
+        print()
         logger.info('completed {0} creation{2} of Composition() in {1:.8f}s'.format(count, t, 's' if count != 1 else ''))
 
 # Unit tests for Composition.add_mechanism
 class TestAddMechanism:
-
     def test_add_once(self):
         comp = Composition()
         comp.add_mechanism(mechanism())
@@ -55,62 +55,66 @@ class TestAddMechanism:
         comp.add_mechanism(mech)
 
     def test_timing_stress(self):
-        for j in range(7):
-            t = timeit('for i in range(j):\n comp.add_mechanism(mechanism())',
-                setup='''
+        count=100
+        t = timeit('comp.add_mechanism(mechanism())',
+            setup='''
 from PsyNeuLink.composition import Composition
 from PsyNeuLink.Components.Mechanisms.Mechanism import mechanism
-comp=Composition()
-j={0}'''.format(j),
-                number=j
-            )
-            logger.info('completed {0} addition{2} of a mechanism to a composition in {1:.8f}s'.format(j, t, 's' if j != 1 else ''))
+comp = Composition()
+''',
+            number=count
+        )
+        print()
+        logger.info('completed {0} addition{2} of a mechanism to a composition in {1:.8f}s'.format(count, t, 's' if count != 1 else ''))
+
+# Unit tests for Composition.add_projection
+class TestAddProjection:
+    def test_add_once(self):
+        comp = Composition()
+        A = mechanism()
+        B = mechanism()
+        comp.add_mechanism(A)
+        comp.add_mechanism(B)
+        comp.add_projection(A, MappingProjection(), B)
+
+    def test_add_twice(self):
+        comp = Composition()
+        A = mechanism()
+        B = mechanism()
+        comp.add_mechanism(A)
+        comp.add_mechanism(B)
+        comp.add_projection(A, MappingProjection(), B)
+        comp.add_projection(A, MappingProjection(), B)
+
+    def test_add_same_twice(self):
+        comp = Composition()
+        A = mechanism()
+        B = mechanism()
+        comp.add_mechanism(A)
+        comp.add_mechanism(B)
+        proj = MappingProjection()
+        comp.add_projection(A, proj, B)
+        comp.add_projection(A, proj, B)
+
+    def test_timing_stress(self):
+        count = 1000
+        t = timeit('comp.add_projection(A, MappingProjection(), B)',
+            setup='''
+from PsyNeuLink.composition import Composition
+from PsyNeuLink.Components.Mechanisms.Mechanism import mechanism
+from PsyNeuLink.Components.Projections.MappingProjection import MappingProjection
+comp = Composition()
+A = mechanism()
+B = mechanism()
+comp.add_mechanism(A)
+comp.add_mechanism(B)
+''',
+            number=count
+        )
+        print()
+        logger.info('completed {0} addition{2} of a mechanism to a composition in {1:.8f}s'.format(count, t, 's' if count != 1 else ''))
 
 '''
-# Unit tests for Composition.add_projection
-if test_add_projection:
-    print("\n" + "add_projection tests:")
-
-    print("Test 1: Basic Test")
-    comp = Composition()
-    A = mechanism()
-    B = mechanism()
-    comp.add_mechanism(A)
-    comp.add_mechanism(B)
-    comp.add_projection(A, MappingProjection(), B)
-    print("passed")
-
-    print("Test 2: Second call")
-    comp.add_projection(A, MappingProjection(), B)
-    print("passed")
-
-    print("Test 3: Adding same projection twice")
-    comp = Composition()
-    A = mechanism()
-    B = mechanism()
-    comp.add_mechanism(A)
-    comp.add_mechanism(B)
-    proj = MappingProjection()
-    comp.add_projection(A, proj, B)
-    comp.add_projection(A, proj, B)
-    print("passed")
-
-    print("Test 4: Timing and Stress Test")
-    comp = Composition()
-    A = mechanism()
-    B = mechanism()
-    comp.add_mechanism(A)
-    comp.add_mechanism(B)
-    count = 1000
-    proj_list = []
-    for i in range(count):
-        proj_list.append(MappingProjection())
-    start = time.time()
-    for i in range(count):
-        comp.add_projection(A, proj_list[i], B)
-    end = time.time()
-    print("passed in " + str(end-start) + " seconds for " + str(count) + " calls")
-
 # Unit tests for Composition.analyze_graph
 if test_analyze_graph:
     print("\n" + "analyze_graph tests:")
