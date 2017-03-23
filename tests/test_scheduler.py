@@ -37,4 +37,4 @@ class TestScheduler:
         sched = Scheduler({A: 1}, set([c]))
         res = sched.run_trial(EndWhenAllTerminated(sched))
         for _ in res:
-            logger.info(res)
+            logger.info(_)

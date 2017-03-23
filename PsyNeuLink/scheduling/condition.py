@@ -11,18 +11,32 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class Condition(object):
-    def __init__(self, dependencies, func):
+    def __init__(self, dependencies, func, *args, **kwargs):
         '''
         :param self:
-        :param dependencies: one or more parameters over which func is evaluated to determine satisfaction of the :keyword:`Condition`
-            user must ensure that dependencies are suitable as func parameters 
+        :param dependencies: one or more PNL objects over which func is evaluated to determine satisfaction of the :keyword:`Condition`
+            user must ensure that dependencies are suitable as func parameters
         :param func: parameters over which func is evaluated to determine satisfaction of the :keyword:`Condition`
+        :param args: additional formal arguments passed to func
+        :param kwargs: additional keyword arguments passed to func
         '''
         self.dependencies = dependencies
         self.func = func
+        self.args = args
+        self.kwargs = kwargs
 
     def is_satisfied(self):
+        has_args = len(self.args) > 0
+        has_kwargs = len(self.kwargs) > 0
+
+        if has_args and has_kwargs:
+            return self.func(self.dependencies, *self.args, **self.kwargs)
+        if has_args:
+            return self.func(self.dependencies, *self.args)
+        if has_kwargs:
+            return self.func(self.dependencies, **self.kwargs)
         return self.func(self.dependencies)
+
 
 ######################################################################
 # Activation Conditions
@@ -61,7 +75,7 @@ class EndAfterNCalls(Condition):
             else:
                 logger.error('EndAfterNCalls: Unsupported dependency type: {0}'.format(type(dependency)))
                 return True
-        super().__init__(dependency, func)
+        super().__init__(dependency, func, n)
 
 class EndWhenAllTerminated(Condition):
     def __init__(self, dependency):
