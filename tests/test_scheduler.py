@@ -7,10 +7,6 @@ from PsyNeuLink.scheduling.Scheduler import Scheduler
 from PsyNeuLink.scheduling.Constraint import Constraint
 from PsyNeuLink.scheduling.condition import BeginImmediately, RepeatAlways, EndAfterNCalls, EndWhenAllTerminated
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
 logger = logging.getLogger(__name__)
 
 class TestScheduler:
@@ -37,4 +33,4 @@ class TestScheduler:
         sched = Scheduler({A: 1}, set([c]))
         res = sched.run_trial(EndWhenAllTerminated(sched))
         for _ in res:
-            logger.info(_)
+            logger.info(_.pop())

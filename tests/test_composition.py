@@ -7,10 +7,6 @@ from PsyNeuLink.Components.Mechanisms.Mechanism import mechanism
 from PsyNeuLink.Components.Projections.MappingProjection import MappingProjection
 from PsyNeuLink.Components.Mechanisms.ProcessingMechanisms.TransferMechanism import TransferMechanism
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
 logger = logging.getLogger(__name__)
 
 # All tests are set to run. If you need to skip certain tests,

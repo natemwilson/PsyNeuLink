@@ -1,3 +1,6 @@
+import logging
+logger = logging.getLogger(__name__)
+
 class Scheduler(object):
     def __init__(self, components={}, constraints=set()):
         '''
@@ -25,6 +28,7 @@ class Scheduler(object):
         #######
 
         self.current_time_step += 1
+        logger.debug('Current time step: {0}'.format(self.current_time_step))
         # reset all mechanisms for this time step
         for comp in self.components:
             comp.new_time_step()
@@ -53,7 +57,7 @@ class Scheduler(object):
         for c in self.components:
             c.new_trial()
         while not condition_termination.is_satisfied():
-            return self.run_time_step()
+            yield self.run_time_step()
 
 
 def main():
