@@ -36,10 +36,12 @@ class Scheduler(object):
         firing_queue = set()
         for cons in list(self.constraints_inactive):
             if cons.condition_activation.is_satisfied():
+                logger.debug('Activating {0}'.format(cons))
                 self.constraints_active.add(cons)
                 self.constraints_inactive.remove(cons)
         for cons in list(self.constraints_active):
             if cons.condition_termination.is_satisfied():
+                logger.debug('Terminating {0}'.format(cons))
                 self.constraints_terminated.add(cons)
                 self.constraints_active.remove(cons)
             else:
@@ -58,6 +60,8 @@ class Scheduler(object):
             c.new_trial()
         while not condition_termination.is_satisfied():
             yield self.run_time_step()
+
+        logger.debug('Exit run_trial')
 
 
 def main():

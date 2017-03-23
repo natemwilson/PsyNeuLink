@@ -31,6 +31,6 @@ class TestScheduler:
             condition_termination=EndAfterNCalls(A, 10)
         )
         sched = Scheduler({A: 1}, set([c]))
-        res = sched.run_trial(EndWhenAllTerminated(sched))
-        for _ in res:
-            logger.info(_.pop())
+        for time_step in sched.run_trial(EndWhenAllTerminated(sched)):
+            e = time_step.pop()
+            logger.debug('{0}, {1}, {2}'.format(e, e is A, e == A))

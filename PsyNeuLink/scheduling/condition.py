@@ -67,6 +67,7 @@ class EndAfterNCalls(Condition):
                     TimeScale.RUN: dependency.calls_current_run - 1,
                     TimeScale.LIFE: dependency.calls_since_initialization - 1
                 }
+                logger.debug('{0} has reached {1} num_calls in {2}'.format(dependency, num_calls[time_scale], time_scale.name))
                 return num_calls[time_scale] > n
             else:
                 logger.error('EndAfterNCalls: Unsupported dependency type: {0}'.format(type(dependency)))
