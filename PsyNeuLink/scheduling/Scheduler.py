@@ -8,10 +8,11 @@ class Scheduler(object):
         :param components: (dict) - a dictionary mapping each component to its priority
         :param constraints: (set) - a dictionary mapping each component to the set of :keyword:`Constraint`s of which it is owner
         '''
+        logger.debug('Scheduler: Components: {0}, Constraints: {1}'.format(components, constraints))
         self.components = components
         self.constraints = constraints
         #self.constraints_dict = {x: set() for x in components}
-        self.constraints_inactive = constraints
+        self.constraints_inactive = set(constraints)
         self.constraints_active = set()
         self.constraints_terminated = set()
 

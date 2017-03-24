@@ -5,7 +5,7 @@ from PsyNeuLink.Components.Functions.Function import Linear
 from PsyNeuLink.composition import Composition
 from PsyNeuLink.scheduling.Scheduler import Scheduler
 from PsyNeuLink.scheduling.Constraint import Constraint
-from PsyNeuLink.scheduling.condition import BeginImmediately, RepeatAlways, EndAfterNCalls, EndWhenAllTerminated
+from PsyNeuLink.scheduling.condition import BeginImmediately, RepeatAlways, EndAfterNCalls, EndWhenAllTerminated, CompositeConditionAny
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +31,10 @@ class TestScheduler:
             condition_termination=EndAfterNCalls(A, 10)
         )
         sched = Scheduler({A: 1}, set([c]))
-        for time_step in sched.run_trial(EndWhenAllTerminated(sched)):
-            e = time_step.pop()
-            logger.debug('{0}, {1}, {2}'.format(e, e is A, e == A))
+        output = []
+        for time_step in sched.run_trial(CompositeConditionAny(EndWhenAllTerminated(sched), EndAfterNCalls(sched, 20))):
+            output.append(time_step)
+            for mech in time_step:
+                # simulate running the mechanism
+                mech.execute()
+                #logger.debug('{0}, {1}, {2}'.format(e, e is A, e == A))

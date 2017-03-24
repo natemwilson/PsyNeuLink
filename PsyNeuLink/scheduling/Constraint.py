@@ -26,3 +26,15 @@ class Constraint(object):
         self.condition_activation = condition_activation
         self.condition_repeat = condition_repeat
         self.condition_termination = condition_termination
+
+    def __repr__(self):
+        return '{0}(owner={1}, dependencies={2}, activate={3}, repeat={4}, terminate={5}, at {6})'.format(
+            self.__class__.__name__,
+            self.owner,
+            self.dependencies,
+            self.condition_activation.__class__.__name__,
+            self.condition_repeat.__class__.__name__,
+            self.condition_termination.__class__.__name__,
+            hex(id(self))
+        )
+    __str__ = __repr__

@@ -33,6 +33,34 @@ class Condition(object):
             return self.func(self.dependencies, **self.kwargs)
         return self.func(self.dependencies)
 
+class CompositeConditionAll(object):
+    def __init__(self, *args):
+        '''
+        :param self:
+        :param args: one or more :keyword:`Condition`s, all of which must be satisfied to satisfy this CompositeCondition
+        '''
+        self.args = args
+
+    def is_satisfied(self):
+        for cond in self.args:
+            if not cond.is_satisfied():
+                return False
+        return True
+
+class CompositeConditionAny(object):
+    def __init__(self, *args):
+        '''
+        :param self:
+        :param args: one or more :keyword:`Condition`s, any of which must be satisfied to satisfy this CompositeCondition
+        '''
+        self.args = args
+
+    def is_satisfied(self):
+        for cond in self.args:
+            if cond.is_satisfied():
+                return True
+        return False
+
 
 ######################################################################
 # Activation Conditions
@@ -48,7 +76,7 @@ class RepeatAlways(Condition):
     def __init__(self):
         super().__init__(True, lambda x: x)
 
-class EveryNSteps(Condition):
+class RepeatEveryNSteps(Condition):
     def __init__(self, dependency, n, time_scale=TimeScale.TIME_STEP):
         # model this after EndAfterNCalls
         pass
@@ -78,9 +106,10 @@ class EndWhenAllTerminated(Condition):
     def __init__(self, dependency):
         def func(dependency):
             if isinstance(dependency, Scheduler):
+                logger.debug('EndWhenAllTerminated: terminated constraints len: {0}, constraints len: {1}'.format(len(dependency.constraints_terminated), len(dependency.constraints)))
                 return len(dependency.constraints_terminated) == len(dependency.constraints)
             else:
-                logger.error('EndAfterNCalls: Unsupported dependency type: {0}'.format(type(dependency)))
+                logger.error('EndWhenAllTerminated: Unsupported dependency type: {0}'.format(type(dependency)))
                 return True
         super().__init__(dependency, func)
 
