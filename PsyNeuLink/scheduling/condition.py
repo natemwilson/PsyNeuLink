@@ -88,7 +88,7 @@ class EndAfterNCalls(Condition):
     def __init__(self, dependency, n, time_scale=TimeScale.TRIAL):
         def func(dependency, n):
             if isinstance(dependency, Scheduler):
-                return dependency.current_time_step > n
+                return dependency.current_time_step == n
             elif isinstance(dependency, Component):
                 num_calls = {
                     TimeScale.TRIAL: dependency.calls_current_trial,
@@ -96,7 +96,7 @@ class EndAfterNCalls(Condition):
                     TimeScale.LIFE: dependency.calls_since_initialization - 1
                 }
                 logger.debug('{0} has reached {1} num_calls in {2}'.format(dependency, num_calls[time_scale], time_scale.name))
-                return num_calls[time_scale] > n
+                return num_calls[time_scale] == n
             else:
                 logger.error('EndAfterNCalls: Unsupported dependency type: {0}'.format(type(dependency)))
                 return True
