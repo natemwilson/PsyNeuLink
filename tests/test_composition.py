@@ -112,7 +112,7 @@ comp.add_mechanism(B)
             number=count
         )
         print()
-        logger.info('completed {0} addition{2} of a mechanism to a composition in {1:.8f}s'.format(count, t, 's' if count != 1 else ''))
+        logger.info('completed {0} addition{2} of a projection to a composition in {1:.8f}s'.format(count, t, 's' if count != 1 else ''))
 
 '''
 # Unit tests for Composition.analyze_graph
