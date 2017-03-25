@@ -1780,7 +1780,7 @@ class Component(object):
             # FUNCTION is a generic function (presumably user-defined), so "wrap" it in UserDefinedFunction:
             #   Note: calling UserDefinedFunction.function will call FUNCTION
             elif inspect.isfunction(function):
-                
+
 
                 from PsyNeuLink.Components.Functions.Function import UserDefinedFunction
                 # # MODIFIED 1/10/17 OLD:

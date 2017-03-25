@@ -1,5 +1,5 @@
 from PsyNeuLink import Component
-from PsyNeuLink.scheduling.condition import BeginImmediately, RepeatAlways, EndAfterNCalls
+from PsyNeuLink.scheduling.condition import Immediately, Always, Never
 
 class Constraint(object):
     ########
@@ -9,12 +9,12 @@ class Constraint(object):
     # Contains a method 'is_satisfied' which checks dependencies against the condition and returns a boolean
     ########
     def __init__(
-        self, 
+        self,
         owner,
         dependencies=(),
-        condition_activation=BeginImmediately(), 
-        condition_repeat=RepeatAlways(),
-        condition_termination=None,
+        condition_activation=Immediately(),
+        condition_repeat=Always(),
+        condition_termination=Never(),
         time_scales = None
     ):
         self.owner = owner # Component that falls under this constraint

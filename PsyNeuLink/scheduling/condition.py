@@ -6,6 +6,13 @@ from PsyNeuLink.scheduling.Scheduler import Scheduler
 
 logger = logging.getLogger(__name__)
 
+class ConditionError(Exception):
+     def __init__(self, error_value):
+         self.error_value = error_value
+
+     def __str__(self):
+         return repr(self.error_value)
+
 class Condition(object):
     def __init__(self, dependencies, func, *args, **kwargs):
         '''
@@ -37,7 +44,11 @@ class CompositeConditionAll(object):
     def __init__(self, *args):
         '''
         :param self:
-        :param args: one or more :keyword:`Condition`s, all of which must be satisfied to satisfy this CompositeCondition
+        :param args: one or more :keyword:`Condition`s, all of which must be satisfied to satisfy this CompositeCondition;
+            to initialize with a list (for example),
+                conditions = [AfterNCalls(mechanism, 5) for mechanism in mechanism_list]
+            unpack the list to supply its members as args
+                composite_condition = CompositeConditionAll(*conditions)
         '''
         self.args = args
 
@@ -51,7 +62,11 @@ class CompositeConditionAny(object):
     def __init__(self, *args):
         '''
         :param self:
-        :param args: one or more :keyword:`Condition`s, any of which must be satisfied to satisfy this CompositeCondition
+        :param args: one or more :keyword:`Condition`s, any of which must be satisfied to satisfy this CompositeCondition;
+            to initialize with a list (for example),
+                conditions = [AfterNCalls(mechanism, 5) for mechanism in mechanism_list]
+            unpack the list to supply its members as args
+                composite_condition = CompositeConditionAll(*conditions)
         '''
         self.args = args
 
@@ -61,30 +76,24 @@ class CompositeConditionAny(object):
                 return True
         return False
 
-
 ######################################################################
-# Activation Conditions
+# Included Activation, Repeat, and Termination Conditions
 ######################################################################
-class BeginImmediately(Condition):
+class Immediately(Condition):
     def __init__(self):
         super().__init__(True, lambda x: x)
 
-######################################################################
-# Repeat Conditions
-######################################################################
-class RepeatAlways(Condition):
+# identical to Immediately, intended as repeat condition
+# renamed for user comprehension
+class Always(Condition):
     def __init__(self):
         super().__init__(True, lambda x: x)
 
-class RepeatEveryNSteps(Condition):
-    def __init__(self, dependency, n, time_scale=TimeScale.TIME_STEP):
-        # model this after EndAfterNCalls
-        pass
+class Never(Condition):
+    def __init__(self):
+        super().__init__(False, lambda x: x)
 
-######################################################################
-# Termination Conditions
-######################################################################
-class EndAfterNCalls(Condition):
+class AfterNCalls(Condition):
     def __init__(self, dependency, n, time_scale=TimeScale.TRIAL):
         def func(dependency, n):
             if isinstance(dependency, Scheduler):
@@ -98,20 +107,64 @@ class EndAfterNCalls(Condition):
                 logger.debug('{0} has reached {1} num_calls in {2}'.format(dependency, num_calls[time_scale], time_scale.name))
                 return num_calls[time_scale] == n
             else:
-                logger.error('EndAfterNCalls: Unsupported dependency type: {0}'.format(type(dependency)))
-                return True
+                raise ConditionError('AfterNCalls: Unsupported dependency type: {0}'.format(type(dependency)))
         super().__init__(dependency, func, n)
 
-class EndWhenAllTerminated(Condition):
+class EveryNCalls(Condition):
+    def __init__(self, dependency, n, owner=None, time_scale=TimeScale.TRIAL):
+        def func(dependency, n, owner):
+            if isinstance(dependency, Scheduler):
+                return dependency.current_time_step % n == 0
+            elif isinstance(dependency, Component):
+                if owner is None:
+                    raise ConditionError('EveryNCalls: When dependency is a Component, an owning Component is needed')
+                calls_dependency = {
+                    TimeScale.TRIAL: dependency.calls_current_trial,
+                    TimeScale.RUN: dependency.calls_current_run - 1,
+                    TimeScale.LIFE: dependency.calls_since_initialization - 1
+                }
+                calls_owner = {
+                    TimeScale.TRIAL: owner.calls_current_trial,
+                    TimeScale.RUN: owner.calls_current_run - 1,
+                    TimeScale.LIFE: owner.calls_since_initialization - 1
+                }
+                logger.debug('{0} has reached {1} calls in {2}'.format(dependency, calls_dependency[time_scale], time_scale.name))
+                logger.debug('{0} has reached {1} calls in {2}'.format(owner, calls_owner[time_scale], time_scale.name))
+                n_dep = calls_dependency[time_scale]
+                n_own = calls_owner[time_scale]
+                return n_dep % n == 0 and n_dep > 0 and n*n_own < n_dep
+            else:
+                raise ConditionError('EveryNCalls: Unsupported dependency type: {0}'.format(type(dependency)))
+
+        super().__init__(dependency, func, n, owner)
+
+class WhenFinished(Condition):
     def __init__(self, dependency):
         def func(dependency):
-            if isinstance(dependency, Scheduler):
-                logger.debug('EndWhenAllTerminated: terminated constraints len: {0}, constraints len: {1}'.format(len(dependency.constraints_terminated), len(dependency.constraints)))
-                return len(dependency.constraints_terminated) == len(dependency.constraints)
+            if isinstance(dependency, Mechanism):
+                return dependency.is_finished
             else:
-                logger.error('EndWhenAllTerminated: Unsupported dependency type: {0}'.format(type(dependency)))
-                return True
+                raise ConditionError('WhenFinished: Unsupported dependency type: {0}'.format(type(dependency)))
+
         super().__init__(dependency, func)
+
+class WhenTerminated(Condition):
+    def __init__(self, dependency, scheduler=None):
+        def func(dependency, scheduler=None):
+            if isinstance(dependency, Scheduler):
+                logger.debug('WhenTerminated: terminated constraints len: {0}, constraints len: {1}'.format(len(dependency.constraints_terminated), len(dependency.constraints)))
+                return len(dependency.constraints_terminated) == len(dependency.constraints)
+            elif isinstance(dependency, Component):
+                if scheduler is None:
+                    raise ConditionError('WhenTerminated: dependency is Component but no scheduler was given as parameter')
+
+            else:
+                raise ConditionError('WhenTerminated: Unsupported dependency type: {0}'.format(type(dependency)))
+
+        super().__init__(dependency, func, scheduler=None)
+
+
+
 
 def every_n_calls(n, time_scale = 'trial'):
     """

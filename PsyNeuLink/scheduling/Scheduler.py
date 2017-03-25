@@ -11,7 +11,6 @@ class Scheduler(object):
         logger.debug('Scheduler: Components: {0}, Constraints: {1}'.format(components, constraints))
         self.components = components
         self.constraints = constraints
-        #self.constraints_dict = {x: set() for x in components}
         self.constraints_inactive = set(constraints)
         self.constraints_active = set()
         self.constraints_terminated = set()
@@ -47,7 +46,7 @@ class Scheduler(object):
                 self.constraints_active.remove(cons)
             else:
                 if cons.condition_repeat.is_satisfied():
-                    firing_queue.add(comp)
+                    firing_queue.add(cons.owner)
 
         return firing_queue
 
