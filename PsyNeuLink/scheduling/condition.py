@@ -1,8 +1,9 @@
 import logging
 
-from PsyNeuLink.Globals.TimeScale import TimeScale
 from PsyNeuLink import Component
+from PsyNeuLink.Components.Mechanisms.Mechanism import Mechanism
 from PsyNeuLink.scheduling.Scheduler import Scheduler
+from PsyNeuLink.Globals.TimeScale import TimeScale
 
 logger = logging.getLogger(__name__)
 

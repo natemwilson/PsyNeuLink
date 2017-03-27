@@ -15,7 +15,7 @@ class Scheduler(object):
         self.constraints_active = set()
         self.constraints_terminated = set()
 
-        self.current_time_step = 0
+        self.current_time_step = 1
 
         #for c in constraints:
         #    self.constraints_dict[c.owner].add(c)
@@ -30,7 +30,6 @@ class Scheduler(object):
         # constraints that were satisfied by the previous execution
         #######
 
-        self.current_time_step += 1
         logger.debug('Current time step: {0}'.format(self.current_time_step))
         # reset all mechanisms for this time step
         for comp in self.components:
@@ -51,6 +50,7 @@ class Scheduler(object):
                 if cons.condition_repeat.is_satisfied():
                     firing_queue.add(cons.owner)
 
+        self.current_time_step += 1
         return firing_queue
 
 
