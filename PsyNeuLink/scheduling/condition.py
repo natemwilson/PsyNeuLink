@@ -40,7 +40,7 @@ class Condition(object):
             return self.func(self.dependencies, **self.kwargs)
         return self.func(self.dependencies)
 
-class CompositeConditionAll(object):
+class CompositeConditionAll(Condition):
     def __init__(self, *args):
         '''
         :param self:
@@ -58,7 +58,7 @@ class CompositeConditionAll(object):
                 return False
         return True
 
-class CompositeConditionAny(object):
+class CompositeConditionAny(Condition):
     def __init__(self, *args):
         '''
         :param self:
