@@ -7,7 +7,7 @@ from PsyNeuLink.Components.Functions.Function import Linear
 from PsyNeuLink.composition import Composition
 from PsyNeuLink.scheduling.Scheduler import Scheduler
 from PsyNeuLink.scheduling.Constraint import Constraint
-from PsyNeuLink.scheduling.condition import AfterNCalls, Always, AtStep, CompositeConditionAll, CompositeConditionAny, EveryNCalls, Immediately, Never, WhenTerminated
+from PsyNeuLink.scheduling.condition import AfterNCalls, AfterStep, Always, AtStep, CompositeConditionAll, CompositeConditionAny, EveryNCalls, Immediately, Never, WhenTerminated
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +150,7 @@ class TestScheduler:
         C = TransferMechanism(function = Linear(intercept = 1.5), name = 'C')
         sched = Scheduler({A: 1, B: 2, C: 3})
 
-        c1 = Constraint(A, condition_termination=AtStep(sched, 5))
+        c1 = Constraint(A, condition_termination=AfterStep(sched, 5))
         c2 = Constraint(B, condition_activation=AfterNCalls(A, 5))
         c3 = Constraint(C, condition_activation=AfterNCalls(B, 1))
         sched.add_constraints(set([c1, c2, c3]))

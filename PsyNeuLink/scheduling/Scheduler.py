@@ -20,6 +20,9 @@ class Scheduler(object):
         #for c in constraints:
         #    self.constraints_dict[c.owner].add(c)
 
+    def add_constraints(self, constraints):
+        self.constraints_inactive.update(set(constraints))
+
     def run_time_step(self):
         #######
         # Resets all mechanisms in the Scheduler for this time_step

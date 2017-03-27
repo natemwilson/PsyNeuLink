@@ -93,11 +93,30 @@ class Never(Condition):
     def __init__(self):
         super().__init__(False, lambda x: x)
 
+class AtStep(Condition):
+    def __init__(self, dependency, n):
+        def func(dependency, n):
+            if isinstance(dependency, Scheduler):
+                return dependency.current_time_step == n
+            else:
+                raise ConditionError('AtStep: Unsupported dependency type: {0}'.format(type(dependency)))
+        super().__init__(dependency, func, n)
+
+class AfterStep(Condition):
+    def __init__(self, dependency, n):
+        def func(dependency, n):
+            if isinstance(dependency, Scheduler):
+                return dependency.current_time_step == n+1
+            else:
+                raise ConditionError('AfterStep: Unsupported dependency type: {0}'.format(type(dependency)))
+        super().__init__(dependency, func, n)
+
 class AfterNCalls(Condition):
     def __init__(self, dependency, n, time_scale=TimeScale.TRIAL):
         def func(dependency, n):
             if isinstance(dependency, Scheduler):
-                return dependency.current_time_step == n
+                # current_time_step is 1-indexed
+                return dependency.current_time_step >= n
             elif isinstance(dependency, Component):
                 num_calls = {
                     TimeScale.TRIAL: dependency.calls_current_trial,
@@ -105,7 +124,7 @@ class AfterNCalls(Condition):
                     TimeScale.LIFE: dependency.calls_since_initialization - 1
                 }
                 logger.debug('{0} has reached {1} num_calls in {2}'.format(dependency, num_calls[time_scale], time_scale.name))
-                return num_calls[time_scale] == n
+                return num_calls[time_scale] >= n
             else:
                 raise ConditionError('AfterNCalls: Unsupported dependency type: {0}'.format(type(dependency)))
         super().__init__(dependency, func, n)
