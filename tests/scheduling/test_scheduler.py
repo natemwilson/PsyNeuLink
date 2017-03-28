@@ -103,6 +103,33 @@ class TestScheduler:
         expected_output = [set(x) for x in expected_output]
         assert output == expected_output
 
+    def test_CompositeCondition_multi(self):
+        A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
+        B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
+        C = TransferMechanism(function = Linear(intercept = 1.5), name = 'C')
+        sched = Scheduler({A: 1, B: 2, C: 3})
+
+        c1 = Constraint(A)     # implicit Immediately, Always, Never
+        c2 = Constraint(B, condition_repeat=EveryNCalls(A, 2, owner=B))
+        c3 = Constraint(C,
+            condition_activation=CompositeConditionAll(
+                CompositeConditionAny(
+                    AfterStep(sched, 7),
+                    AfterNCalls(B, 2)
+                ),
+                CompositeConditionAny(
+                    AfterNCalls(sched, 3),
+                    AfterNCalls(B, 3)
+                )
+            )
+        )
+        sched.add_constraints(set([c1, c2, c3]))
+
+        output = run_trial(sched, AfterStep(sched, 10))
+        expected_output = [[A], [A], [A,B], [A], [A,B], [A,C], [A,B,C], [A,C], [A,B,C], [A,C]]
+        expected_output = [set(x) for x in expected_output]
+        assert output == expected_output
+
     # tests below are copied from old scheduler, need renaming
     def test_1(self):
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
@@ -260,5 +287,79 @@ class TestScheduler:
         output = run_trial(sched, AfterStep(sched, 5))
 
         expected_output = [[A], [A], [A], [A], [A]]
+        expected_output = [set(x) for x in expected_output]
+        assert output == expected_output
+
+    def test_10(self):
+        A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
+        A.is_finished = True
+        B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
+
+        c1 = Constraint(A)     # implicit Immediately, Always, Never
+        c2 = Constraint(B, condition_repeat=CompositeConditionAny(WhenFinished(A), AfterNCalls(A, 3)))
+        sched = Scheduler({A: 1, B: 2}, set([c1, c2]))
+        output = run_trial(sched, AfterStep(sched, 5))
+
+        expected_output = [[A,B], [A,B], [A,B], [A,B], [A,B]]
+        expected_output = [set(x) for x in expected_output]
+        assert output == expected_output
+
+    def test_10b(self):
+        A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
+        A.is_finished = False
+        B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
+
+        c1 = Constraint(A)     # implicit Immediately, Always, Never
+        c2 = Constraint(B, condition_repeat=CompositeConditionAny(WhenFinished(A), AfterNCalls(A, 3)))
+        sched = Scheduler({A: 1, B: 2}, set([c1, c2]))
+        output = run_trial(sched, AfterStep(sched, 5))
+
+        expected_output = [[A], [A], [A], [A,B], [A,B]]
+        expected_output = [set(x) for x in expected_output]
+        assert output == expected_output
+
+    def test_10c(self):
+        A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
+        A.is_finished = True
+        B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
+
+        c1 = Constraint(A)     # implicit Immediately, Always, Never
+        c2 = Constraint(B, condition_repeat=CompositeConditionAll(WhenFinished(A), AfterNCalls(A, 3)))
+        sched = Scheduler({A: 1, B: 2}, set([c1, c2]))
+        output = run_trial(sched, AfterStep(sched, 5))
+
+        expected_output = [[A], [A], [A], [A,B], [A,B]]
+        expected_output = [set(x) for x in expected_output]
+        assert output == expected_output
+
+    def test_10d(self):
+        A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
+        A.is_finished = False
+        B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
+
+        c1 = Constraint(A)     # implicit Immediately, Always, Never
+        c2 = Constraint(B, condition_repeat=CompositeConditionAll(WhenFinished(A), AfterNCalls(A, 3)))
+        sched = Scheduler({A: 1, B: 2}, set([c1, c2]))
+        output = run_trial(sched, AfterStep(sched, 5))
+
+        expected_output = [[A], [A], [A], [A], [A]]
+        expected_output = [set(x) for x in expected_output]
+        assert output == expected_output
+
+    def test_11(self):
+        A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
+        A.is_finished = True
+        B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
+        C = TransferMechanism(function = Linear(intercept = 1.5), name = 'C')
+        sched = Scheduler({A: 1, B: 2, C: 3})
+
+        c1 = Constraint(A)
+        c2 = Constraint(B, condition_repeat=EveryNCalls(A, 2, owner=B))
+        c3 = Constraint(C, condition_activation=CompositeConditionAll(WhenFinished(A), AfterNCalls(B, 3)))
+        sched.add_constraints(set([c1, c2, c3]))
+
+        output = run_trial(sched, AfterStep(sched, 10))
+
+        expected_output = [[A], [A], [A,B], [A], [A,B], [A], [A,B], [A,C], [A,B,C], [A,C]]
         expected_output = [set(x) for x in expected_output]
         assert output == expected_output

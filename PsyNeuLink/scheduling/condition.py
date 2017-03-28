@@ -130,12 +130,17 @@ class AfterNCalls(Condition):
                 raise ConditionError('AfterNCalls: Unsupported dependency type: {0}'.format(type(dependency)))
         super().__init__(dependency, func, n)
 
+class EveryNSteps(Condition):
+    def __init__(dependency, n):
+        if isinstance(dependency, Scheduler):
+            return dependency.current_time_step % n == 0
+        else:
+            raise ConditionError('EveryNSteps: Unsupported dependency type: {0}'.format(type(dependency)))
+
 class EveryNCalls(Condition):
     def __init__(self, dependency, n, owner=None, time_scale=TimeScale.TRIAL):
         def func(dependency, n, owner):
-            if isinstance(dependency, Scheduler):
-                return dependency.current_time_step % n == 0
-            elif isinstance(dependency, Component):
+            if isinstance(dependency, Component):
                 if owner is None:
                     raise ConditionError('EveryNCalls: When dependency is a Component, an owning Component is needed')
                 calls_dependency = {
