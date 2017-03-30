@@ -14,6 +14,31 @@ class ConditionError(Exception):
      def __str__(self):
          return repr(self.error_value)
 
+class ConditionSet(object):
+    def __init__(self, scheduler):
+        '''
+        :param self:
+        :param scheduler: a :keyword:`Scheduler` that these conditions are associated with, which maintains any state necessary for these conditions
+        '''
+        self.scheduler = scheduler
+        self.conditions = {}           #a :keyword:`dict` mapping :keyword:`Component`s to :keyword:`set`s of :keyword:`Condition`s
+
+    def add_conditions(self, owner, conditions):
+        '''
+        :param: self:
+        :param owner: the :keyword:`Component` that is dependent on the :param conditions:
+        :param conditions: a :keyword:`Condition` or :keyword:`iterable` of :keyword:`Condition`s
+        '''
+        if owner not in self.conditions:
+            self.conditions[owner] = set()
+        if isinstance(conditions, Condition):
+            self.condition.scheduler = self.scheduler
+            self.conditions[owner].add(conditions)
+        else
+            for c in conditions:
+                c.scheduler = self.scheduler
+                self.conditions.add(c)
+
 class Condition(object):
     def __init__(self, dependencies, func, *args, **kwargs):
         '''
@@ -26,6 +51,7 @@ class Condition(object):
         '''
         self.dependencies = dependencies
         self.func = func
+        self.scheduler = None
         self.args = args
         self.kwargs = kwargs
 
@@ -41,15 +67,15 @@ class Condition(object):
             return self.func(self.dependencies, **self.kwargs)
         return self.func(self.dependencies)
 
-class CompositeConditionAll(Condition):
+class All(Condition):
     def __init__(self, *args):
         '''
         :param self:
-        :param args: one or more :keyword:`Condition`s, all of which must be satisfied to satisfy this CompositeCondition;
+        :param args: one or more :keyword:`Condition`s, all of which must be satisfied to satisfy this composite condition
             to initialize with a list (for example),
                 conditions = [AfterNCalls(mechanism, 5) for mechanism in mechanism_list]
             unpack the list to supply its members as args
-                composite_condition = CompositeConditionAll(*conditions)
+                composite_condition = All(*conditions)
         '''
         self.args = args
 
@@ -59,15 +85,15 @@ class CompositeConditionAll(Condition):
                 return False
         return True
 
-class CompositeConditionAny(Condition):
+class Any(Condition):
     def __init__(self, *args):
         '''
         :param self:
-        :param args: one or more :keyword:`Condition`s, any of which must be satisfied to satisfy this CompositeCondition;
+        :param args: one or more :keyword:`Condition`s, any of which must be satisfied to satisfy this composite condition
             to initialize with a list (for example),
                 conditions = [AfterNCalls(mechanism, 5) for mechanism in mechanism_list]
             unpack the list to supply its members as args
-                composite_condition = CompositeConditionAll(*conditions)
+                composite_condition = All(*conditions)
         '''
         self.args = args
 

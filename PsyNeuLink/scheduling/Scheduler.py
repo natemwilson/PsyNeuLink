@@ -1,3 +1,4 @@
+import queue
 import logging
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,30 @@ class Scheduler(object):
 
     def add_constraints(self, constraints):
         self.constraints_inactive.update(set(constraints))
+
+    '''
+    def prioritize_queue(self, firing_queue):
+        q = queue.PriorityQueue()
+        prioritized_list = []
+
+        for comp in firing_queue:
+            q.put((self.components[comp], comp))
+
+        cur_priority = None
+        cur_parallel_step = set()
+        while not q.empty():
+            next_comp = q.get()
+            logger.debug('prioritize_queue: pqueue len: {0}, next component: {1}'.format(q.qsize(), next_comp))
+            if cur_priority is None:
+                cur_priority = next_comp[0]
+            elif next_comp[0] > cur_priority:
+                prioritized_list.append(cur_parallel_step)
+                cur_priority = next_comp[0]
+                cur_parallel_step = set()
+            cur_parallel_step.add(next_comp[1])
+
+        return prioritized_list
+    '''
 
     def run_time_step(self):
         #######
@@ -51,8 +76,8 @@ class Scheduler(object):
                     firing_queue.add(cons.owner)
 
         self.current_time_step += 1
+        #return self.prioritize_queue(firing_queue)
         return firing_queue
-
 
     def run_trial(self, condition_termination):
         ######
