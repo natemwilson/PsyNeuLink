@@ -32,6 +32,7 @@ class ConditionSet(object):
         :param conditions: a :keyword:`Condition` (including All or Any)
         '''
         logger.debug('add_condition: Setting scheduler of {0}, (owner {2}) to self.scheduler ({1})'.format(condition, self.scheduler, owner))
+        condition.owner = owner
         condition.scheduler = self.scheduler
         self.conditions[owner] = condition
 
@@ -56,11 +57,12 @@ class Condition(object):
         '''
         self.dependencies = dependencies
         self.func = func
-        self._scheduler = None
         self.args = args
         self.kwargs = kwargs
 
-        logger.debug('{1} dependencies: {0}'.format(dependencies, type(self).__name__))
+        self._scheduler = None
+        self._owner = None
+        #logger.debug('{1} dependencies: {0}'.format(dependencies, type(self).__name__))
 
     @property
     def scheduler(self):
@@ -70,6 +72,15 @@ class Condition(object):
     def scheduler(self, value):
         logger.debug('Condition ({0}) setting scheduler to {1}'.format(type(self).__name__, value))
         self._scheduler = value
+
+    @property
+    def owner(self):
+        return self._owner
+
+    @owner.setter
+    def owner(self, value):
+        logger.debug('Condition ({0}) setting owner to {1}'.format(type(self).__name__, value))
+        self._owner = value
 
     def is_satisfied(self):
         has_args = len(self.args) > 0
@@ -82,6 +93,10 @@ class Condition(object):
         if has_kwargs:
             return self.func(self.dependencies, **self.kwargs)
         return self.func(self.dependencies)
+
+# TODO: create this class to subclass All and Any from
+#class CompositeCondition(Condition):
+    #def
 
 class All(Condition):
     def __init__(self, *args):
@@ -98,9 +113,16 @@ class All(Condition):
     @Condition.scheduler.setter
     def scheduler(self, value):
         for cond in self.dependencies:
-            logger.debug('schedule setter: Setting scheduler of {0} to self.scheduler ({1})'.format(cond, self.scheduler))
+            logger.debug('schedule setter: Setting scheduler of {0} to ({1})'.format(cond, value))
             if cond.scheduler is None:
                 cond._scheduler = value
+
+    @Condition.owner.setter
+    def owner(self, value):
+        for cond in self.dependencies:
+            logger.debug('owner setter: Setting owner of {0} to ({1})'.format(cond, value))
+            if cond.owner is None:
+                cond._owner = value
 
     def satis(self, conds):
         for cond in conds:
@@ -122,11 +144,18 @@ class Any(Condition):
 
     @Condition.scheduler.setter
     def scheduler(self, value):
-        logger.debug('Any setter args: {0}'.format(self.args))
+        logger.debug('Any setter args: {0}'.format(self.dependencies))
         for cond in self.dependencies:
-            logger.debug('schedule setter: Setting scheduler of {0} to self.scheduler ({1})'.format(cond, self.scheduler))
+            logger.debug('schedule setter: Setting scheduler of {0} to ({1})'.format(cond, value))
             if cond.scheduler is None:
                 cond._scheduler = value
+
+    @Condition.owner.setter
+    def owner(self, value):
+        for cond in self.dependencies:
+            logger.debug('owner setter: Setting owner of {0} to ({1})'.format(cond, value))
+            if cond.owner is None:
+                cond._owner = value
 
     def satis(self, conds):
         for cond in conds:
@@ -176,7 +205,7 @@ class AfterNCalls(Condition):
             if self.scheduler is None:
                 raise ConditionError('{0}: self.scheduler is None - scheduler must be assigned'.format(type(self).__name__))
             num_calls = self.scheduler.counts[time_scale][dependency]
-            logger.debug('{0} has reached {1} num_calls in {2}'.format(dependency, num_calls, time_scale.name))
+            #logger.debug('{0} has reached {1} num_calls in {2}'.format(dependency, num_calls, time_scale.name))
             return num_calls >= n
         super().__init__(dependency, func, n)
 
@@ -189,30 +218,14 @@ class EveryNSteps(Condition):
         super().__init__(n, func)
 
 class EveryNCalls(Condition):
-    def __init__(self, dependency, n, owner=None, time_scale=TimeScale.TRIAL):
-        def func(dependency, n, owner):
-            if isinstance(dependency, Component):
-                if owner is None:
-                    raise ConditionError('EveryNCalls: When dependency is a Component, an owning Component is needed')
-                calls_dependency = {
-                    TimeScale.TRIAL: dependency.calls_current_trial,
-                    TimeScale.RUN: dependency.calls_current_run - 1,
-                    TimeScale.LIFE: dependency.calls_since_initialization - 1
-                }
-                calls_owner = {
-                    TimeScale.TRIAL: owner.calls_current_trial,
-                    TimeScale.RUN: owner.calls_current_run - 1,
-                    TimeScale.LIFE: owner.calls_since_initialization - 1
-                }
-                logger.debug('{0} has reached {1} calls in {2}'.format(dependency, calls_dependency[time_scale], time_scale.name))
-                logger.debug('{0} has reached {1} calls in {2}'.format(owner, calls_owner[time_scale], time_scale.name))
-                n_dep = calls_dependency[time_scale]
-                n_own = calls_owner[time_scale]
-                return n_dep % n == 0 and n_dep > 0 and n*n_own < n_dep
-            else:
-                raise ConditionError('EveryNCalls: Unsupported dependency type: {0}'.format(type(dependency)))
-
-        super().__init__(dependency, func, n, owner)
+    def __init__(self, dependency, n):
+        def func(dependency, n):
+            if self.scheduler is None:
+                raise ConditionError('{0}: self.scheduler is None - scheduler must be assigned'.format(type(self).__name__))
+            num_calls = self.scheduler.counts_useable[dependency][self.owner]
+            logger.debug('{0} has reached {1} num_calls'.format(dependency, num_calls))
+            return num_calls >= n
+        super().__init__(dependency, func, n)
 
 class WhenFinished(Condition):
     def __init__(self, dependency):
