@@ -29,53 +29,15 @@ class Scheduler(object):
         self.condition_set = condition_set if condition_set is not None else ConditionSet(scheduler=self)
         self.priorities = priorities
 
-        self.counts = {ts: 0 for ts in TimeScale}
+        self.counts = {ts: {} for ts in TimeScale}
+        self.counts[TimeScale.RUN] = {vert.mechanism: 0 for vert in self.composition.graph.vertices}
+        self.counts[TimeScale.RUN][self] = 0
+        self.counts[TimeScale.TRIAL] = {vert.mechanism: 0 for vert in self.composition.graph.vertices}
+        self.counts[TimeScale.TRIAL][self] = 0
 
-    def add_constraints(self, constraints):
-        self.constraints_inactive.update(set(constraints))
-
-    def run_time_step(self):
-        #######
-        # Resets all mechanisms in the Scheduler for this time_step
-        # Initializes a firing queue, then continuously executes mechanisms and updates queue according to any
-        # constraints that were satisfied by the previous execution
-        #######
-
-        logger.debug('Current time step: {0}'.format(self.current_time_step))
-        # reset all mechanisms for this time step
-        for comp in self.components:
-            comp.new_time_step()
-
-        firing_queue = set()
-        for cons in list(self.constraints_inactive):
-            if cons.condition_activation.is_satisfied():
-                logger.debug('Activating {0}'.format(cons))
-                self.constraints_active.add(cons)
-                self.constraints_inactive.remove(cons)
-        for cons in list(self.constraints_active):
-            if cons.condition_termination.is_satisfied():
-                logger.debug('Terminating {0}'.format(cons))
-                self.constraints_terminated.add(cons)
-                self.constraints_active.remove(cons)
-            else:
-                if cons.condition_repeat.is_satisfied():
-                    firing_queue.add(cons.owner)
-
-        self.current_time_step += 1
-        #return self.prioritize_queue(firing_queue)
-        return firing_queue
-
-    def run_trial(self, condition_termination):
-        ######
-        # Resets all mechanisms, then calls self.run_time_step() until the terminal mechanism runs
-        ######
-
-        for c in self.components:
-            c.new_trial()
-        while not condition_termination.is_satisfied():
-            yield self.run_time_step()
-
-        logger.debug('Exit run_trial')
+    def _reset(self, time_scale):
+        for count in self.counts[time_scale]:
+            self.counts[time_scale][count] = 0
 
     def run(self, run_termination_cond=None, trial_termination_cond=None):
         '''
@@ -93,11 +55,21 @@ class Scheduler(object):
         elif not isinstance(trial_termination_cond, Condition):
             raise SchedulerError('Trial termination condition (trial_termination_cond) must be a Condition object')
 
+        if run_termination_cond.scheduler is None:
+            logger.debug('Setting scheduler of {0} to self ({1})'.format(run_termination_cond, self))
+            run_termination_cond.scheduler = self
+
+        if trial_termination_cond.scheduler is None:
+            logger.debug('Setting scheduler of {0} to self ({1})'.format(trial_termination_cond, self))
+            trial_termination_cond.scheduler = self
+
         self.counts[TimeScale.RUN] = {vert.mechanism: 0 for vert in self.composition.graph.vertices}
         self.counts[TimeScale.RUN][self] = 0
         execution_queue = []
 
-        while not run_termination_cond:
+        logger.debug('runterm: {0}'.format(run_termination_cond))
+
+        while not run_termination_cond.is_satisfied():
             self.counts[TimeScale.TRIAL] = {vert.mechanism: 0 for vert in self.composition.graph.vertices}
             self.counts[TimeScale.TRIAL][self] = 0
             # counts_useable is a dictionary intended to store the number of available "instances" of a certain mechanism that
@@ -108,15 +80,18 @@ class Scheduler(object):
 
             # this queue is used to determine which components to run next, and roughly uses a BFS
             # add source nodes into the consideration queue to start
-            consideration_queue = [vert for vert in self.composition.graph.vertices if len(self.graph.get_incoming(vert)) == 0]
+            consideration_queue = [vert for vert in self.composition.graph.vertices if len(self.composition.graph.get_incoming(vert.mechanism)) == 0]
             next_consideration_queue = []
 
-            while not trial_termination_cond:
+            logger.debug('run')
+
+            while not trial_termination_cond.is_satisfied():
+                logger.debug('trial')
                 for current_vert in consideration_queue:
-                    if self.condition_set[current_vert.mechanism].is_satisfied():
+                    if self.condition_set.conditions[current_vert.mechanism].is_satisfied():
                         execution_queue.append(current_vert.mechanism)
-                        self.counts_run[current_vert.mechanism] += 1
-                        self.counts_trial[current_vert.mechanism] += 1
+                        self.counts[TimeScale.RUN][current_vert.mechanism] += 1
+                        self.counts[TimeScale.TRIAL][current_vert.mechanism] += 1
 
                         # current_vert's mechanism is added to the execution queue, so we now need to
                         # reset all of the counts useable by current_vert's mechanism to 0
@@ -131,23 +106,31 @@ class Scheduler(object):
                     for child in self.composition.graph.get_outgoing(current_vert.mechanism):
                         next_consideration_queue.append(child)
 
+                self.counts[TimeScale.TRIAL][self] += 1
+
             # can execute the execution_queue here
-            logger.debug(' '.join(execution_queue))
+            logger.debug(' '.join([str(x) for x in execution_queue]))
 
             consideration_queue = next_consideration_queue
+            self.counts[TimeScale.RUN][self] += 1
 
         return execution_queue
 
 def main():
     comp = Composition()
     A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
-    comp.add_mechanism(A)
+    B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
+    for m in [A, B]:
+        comp.add_mechanism(m)
     sched = Scheduler(comp)
 
-    sched.condition_set.add_condition(A, Always())
+    sched.condition_set.add_condition(A, Any(AtStep(1), AfterNCalls(B, 3)))
+    sched.condition_set.add_condition(B, AfterNCalls(A, 1))
+    logger.debug('condition set sched: {0}'.format(sched.condition_set.scheduler))
 
-    sched.run(run_termination_cond=AfterNCalls(A, 10), trial_termination_cond=AfterNCalls(A, 5))
-
+    logger.debug('Pre run')
+    sched.run(run_termination_cond=AfterNCalls(A, 3, time_scale=TimeScale.RUN), trial_termination_cond=AfterNCalls(B, 2, time_scale=TimeScale.TRIAL))
+    logger.debug('Post run')
 
 if __name__ == '__main__':
     main()

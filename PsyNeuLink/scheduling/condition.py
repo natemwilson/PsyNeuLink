@@ -31,21 +31,17 @@ class ConditionSet(object):
         :param owner: the :keyword:`Component` that is dependent on the :param conditions:
         :param conditions: a :keyword:`Condition` (including All or Any)
         '''
-        if owner not in self.conditions:
-            self.conditions[owner] = set()
+        logger.debug('add_condition: Setting scheduler of {0}, (owner {2}) to self.scheduler ({1})'.format(condition, self.scheduler, owner))
         condition.scheduler = self.scheduler
-        self.conditions[owner].add(condition)
+        self.conditions[owner] = condition
 
     def add_condition_set(self, conditions):
         '''
         :param: self:
-        :param conditions: a :keyword:`dict` mapping :keyword:`Component`s to :keyword:`iterable`s of :keyword:`Condition`s, can be added later with :keyword:`add_condition`
+        :param conditions: a :keyword:`dict` mapping :keyword:`Component`s to :keyword:`Condition`s, can be added later with :keyword:`add_condition`
         '''
         for owner in conditions:
-            if owner not in self.conditions:
-                self.conditions[owner] = conditions[owner]
-            else:
-                self.conditions[owner].union(conditions[owner])
+            self.conditions[owner] = conditions[owner]
 
 
 class Condition(object):
@@ -60,9 +56,20 @@ class Condition(object):
         '''
         self.dependencies = dependencies
         self.func = func
-        self.scheduler = None
+        self._scheduler = None
         self.args = args
         self.kwargs = kwargs
+
+        logger.debug('{1} dependencies: {0}'.format(dependencies, type(self).__name__))
+
+    @property
+    def scheduler(self):
+        return self._scheduler
+
+    @scheduler.setter
+    def scheduler(self, value):
+        logger.debug('Condition ({0}) setting scheduler to {1}'.format(type(self).__name__, value))
+        self._scheduler = value
 
     def is_satisfied(self):
         has_args = len(self.args) > 0
@@ -86,10 +93,17 @@ class All(Condition):
             unpack the list to supply its members as args
                 composite_condition = All(*conditions)
         '''
-        self.args = args
+        super().__init__(args, self.satis)
 
-    def is_satisfied(self):
-        for cond in self.args:
+    @Condition.scheduler.setter
+    def scheduler(self, value):
+        for cond in self.dependencies:
+            logger.debug('schedule setter: Setting scheduler of {0} to self.scheduler ({1})'.format(cond, self.scheduler))
+            if cond.scheduler is None:
+                cond._scheduler = value
+
+    def satis(self, conds):
+        for cond in conds:
             if not cond.is_satisfied():
                 return False
         return True
@@ -104,10 +118,18 @@ class Any(Condition):
             unpack the list to supply its members as args
                 composite_condition = All(*conditions)
         '''
-        self.args = args
+        super().__init__(args, self.satis)
 
-    def is_satisfied(self):
-        for cond in self.args:
+    @Condition.scheduler.setter
+    def scheduler(self, value):
+        logger.debug('Any setter args: {0}'.format(self.args))
+        for cond in self.dependencies:
+            logger.debug('schedule setter: Setting scheduler of {0} to self.scheduler ({1})'.format(cond, self.scheduler))
+            if cond.scheduler is None:
+                cond._scheduler = value
+
+    def satis(self, conds):
+        for cond in conds:
             if cond.is_satisfied():
                 return True
         return False
@@ -134,7 +156,10 @@ class AtStep(Condition):
         def func(n):
             if self.scheduler is None:
                 raise ConditionError('{0}: self.scheduler is None - scheduler must be assigned'.format(type(self).__name__))
-            return self.scheduler.counts[time_scale][self.scheduler] == n
+            try:
+                return self.scheduler.counts[time_scale][self.scheduler] == n
+            except KeyError as e:
+                raise ConditionError('{0}: {1}, is time_scale set correctly? Currently: {2}'.format(type(self).__name__, e, time_scale))
         super().__init__(n, func)
 
 class AfterStep(Condition):
@@ -152,7 +177,7 @@ class AfterNCalls(Condition):
                 raise ConditionError('{0}: self.scheduler is None - scheduler must be assigned'.format(type(self).__name__))
             num_calls = self.scheduler.counts[time_scale][dependency]
             logger.debug('{0} has reached {1} num_calls in {2}'.format(dependency, num_calls, time_scale.name))
-            return num_calls[time_scale] >= n
+            return num_calls >= n
         super().__init__(dependency, func, n)
 
 class EveryNSteps(Condition):
