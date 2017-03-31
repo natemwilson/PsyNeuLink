@@ -2,7 +2,7 @@ import logging
 
 from PsyNeuLink import Component
 from PsyNeuLink.Components.Mechanisms.Mechanism import Mechanism
-from PsyNeuLink.scheduling.Scheduler import Scheduler
+#from PsyNeuLink.scheduling.Scheduler import Scheduler
 from PsyNeuLink.Globals.TimeScale import TimeScale
 
 logger = logging.getLogger(__name__)
@@ -15,29 +15,38 @@ class ConditionError(Exception):
          return repr(self.error_value)
 
 class ConditionSet(object):
-    def __init__(self, scheduler):
+    def __init__(self, scheduler=None, conditions={}):
         '''
         :param self:
         :param scheduler: a :keyword:`Scheduler` that these conditions are associated with, which maintains any state necessary for these conditions
+        :param conditions: a :keyword:`dict` mapping :keyword:`Component`s to :keyword:`iterable`s of :keyword:`Condition`s, can be added later with :keyword:`add_condition`
         '''
         self.scheduler = scheduler
-        self.conditions = {}           #a :keyword:`dict` mapping :keyword:`Component`s to :keyword:`set`s of :keyword:`Condition`s
+        # even though conditions may be added in arbitrary iterables, they are stored internally as dicts of sets
+        self.conditions = conditions
 
-    def add_conditions(self, owner, conditions):
+    def add_condition(self, owner, condition):
         '''
         :param: self:
         :param owner: the :keyword:`Component` that is dependent on the :param conditions:
-        :param conditions: a :keyword:`Condition` or :keyword:`iterable` of :keyword:`Condition`s
+        :param conditions: a :keyword:`Condition` (including All or Any)
         '''
         if owner not in self.conditions:
             self.conditions[owner] = set()
-        if isinstance(conditions, Condition):
-            self.condition.scheduler = self.scheduler
-            self.conditions[owner].add(conditions)
-        else
-            for c in conditions:
-                c.scheduler = self.scheduler
-                self.conditions.add(c)
+        condition.scheduler = self.scheduler
+        self.conditions[owner].add(condition)
+
+    def add_condition_set(self, conditions):
+        '''
+        :param: self:
+        :param conditions: a :keyword:`dict` mapping :keyword:`Component`s to :keyword:`iterable`s of :keyword:`Condition`s, can be added later with :keyword:`add_condition`
+        '''
+        for owner in conditions:
+            if owner not in self.conditions:
+                self.conditions[owner] = conditions[owner]
+            else:
+                self.conditions[owner].union(conditions[owner])
+
 
 class Condition(object):
     def __init__(self, dependencies, func, *args, **kwargs):
@@ -121,47 +130,38 @@ class Never(Condition):
         super().__init__(False, lambda x: x)
 
 class AtStep(Condition):
-    def __init__(self, dependency, n):
-        def func(dependency, n):
-            if isinstance(dependency, Scheduler):
-                return dependency.current_time_step == n
-            else:
-                raise ConditionError('AtStep: Unsupported dependency type: {0}'.format(type(dependency)))
-        super().__init__(dependency, func, n)
+    def __init__(self, n, time_scale=TimeScale.TRIAL):
+        def func(n):
+            if self.scheduler is None:
+                raise ConditionError('{0}: self.scheduler is None - scheduler must be assigned'.format(type(self).__name__))
+            return self.scheduler.counts[time_scale][self.scheduler] == n
+        super().__init__(n, func)
 
 class AfterStep(Condition):
-    def __init__(self, dependency, n):
-        def func(dependency, n):
-            if isinstance(dependency, Scheduler):
-                return dependency.current_time_step == n+1
-            else:
-                raise ConditionError('AfterStep: Unsupported dependency type: {0}'.format(type(dependency)))
-        super().__init__(dependency, func, n)
+    def __init__(self, n):
+        def func(n):
+            if self.scheduler is None:
+                raise ConditionError('{0}: self.scheduler is None - scheduler must be assigned'.format(type(self).__name__))
+            return self.scheduler.counts[time_scale][self.scheduler] == n+1
+        super().__init__(n, func)
 
 class AfterNCalls(Condition):
     def __init__(self, dependency, n, time_scale=TimeScale.TRIAL):
         def func(dependency, n):
-            if isinstance(dependency, Scheduler):
-                # current_time_step is 1-indexed
-                return dependency.current_time_step >= n
-            elif isinstance(dependency, Component):
-                num_calls = {
-                    TimeScale.TRIAL: dependency.calls_current_trial,
-                    TimeScale.RUN: dependency.calls_current_run - 1,
-                    TimeScale.LIFE: dependency.calls_since_initialization - 1
-                }
-                logger.debug('{0} has reached {1} num_calls in {2}'.format(dependency, num_calls[time_scale], time_scale.name))
-                return num_calls[time_scale] >= n
-            else:
-                raise ConditionError('AfterNCalls: Unsupported dependency type: {0}'.format(type(dependency)))
+            if self.scheduler is None:
+                raise ConditionError('{0}: self.scheduler is None - scheduler must be assigned'.format(type(self).__name__))
+            num_calls = self.scheduler.counts[time_scale][dependency]
+            logger.debug('{0} has reached {1} num_calls in {2}'.format(dependency, num_calls, time_scale.name))
+            return num_calls[time_scale] >= n
         super().__init__(dependency, func, n)
 
 class EveryNSteps(Condition):
-    def __init__(dependency, n):
-        if isinstance(dependency, Scheduler):
-            return dependency.current_time_step % n == 0
-        else:
-            raise ConditionError('EveryNSteps: Unsupported dependency type: {0}'.format(type(dependency)))
+    def __init__(self, n):
+        def func(n):
+            if self.scheduler is None:
+                raise ConditionError('{0}: self.scheduler is None - scheduler must be assigned'.format(type(self).__name__))
+            return self.scheduler.counts[time_scale][self.scheduler] % n == 0
+        super().__init__(n, func)
 
 class EveryNCalls(Condition):
     def __init__(self, dependency, n, owner=None, time_scale=TimeScale.TRIAL):
@@ -199,6 +199,7 @@ class WhenFinished(Condition):
 
         super().__init__(dependency, func)
 
+'''
 class WhenTerminated(Condition):
     def __init__(self, dependency, scheduler=None):
         def func(dependency, scheduler=None):
@@ -213,7 +214,7 @@ class WhenTerminated(Condition):
                 raise ConditionError('WhenTerminated: Unsupported dependency type: {0}'.format(type(dependency)))
 
         super().__init__(dependency, func, scheduler=None)
-
+'''
 
 
 

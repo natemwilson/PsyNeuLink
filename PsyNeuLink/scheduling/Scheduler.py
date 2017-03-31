@@ -1,52 +1,38 @@
-import queue
 import logging
+
+from PsyNeuLink.Globals.TimeScale import TimeScale
+
+#only for testing purposes in main
+from PsyNeuLink.scheduling.condition import *
+from PsyNeuLink.composition import Composition
+from PsyNeuLink.Components.Mechanisms.ProcessingMechanisms.TransferMechanism import TransferMechanism
+from PsyNeuLink.Components.Functions.Function import Linear
+
 logger = logging.getLogger(__name__)
 
+class SchedulerError(Exception):
+     def __init__(self, error_value):
+         self.error_value = error_value
+
+     def __str__(self):
+         return repr(self.error_value)
+
 class Scheduler(object):
-    def __init__(self, components={}, constraints=set()):
+    def __init__(self, composition, condition_set=None, priorities={}):
         '''
         :param self:
-        :param components: (dict) - a dictionary mapping each component to its priority
-        :param constraints: (set) - a dictionary mapping each component to the set of :keyword:`Constraint`s of which it is owner
+        :param composition: (Composition) - the Composition this scheduler is scheduling for
+        :param priorities: (dict) - a dictionary mapping each :keyword:`Component` to its priority, where lower values for priority indicate a higher priority
+        :param condition_set: (ConditionSet) - a :keyword:`ConditionSet` to be scheduled
         '''
-        logger.debug('Scheduler: Components: {0}, Constraints: {1}'.format(components, constraints))
-        self.components = components
-        self.constraints = constraints
-        self.constraints_inactive = set(constraints)
-        self.constraints_active = set()
-        self.constraints_terminated = set()
+        self.composition = composition
+        self.condition_set = condition_set if condition_set is not None else ConditionSet(scheduler=self)
+        self.priorities = priorities
 
-        self.current_time_step = 1
-
-        #for c in constraints:
-        #    self.constraints_dict[c.owner].add(c)
+        self.counts = {ts: 0 for ts in TimeScale}
 
     def add_constraints(self, constraints):
         self.constraints_inactive.update(set(constraints))
-
-    '''
-    def prioritize_queue(self, firing_queue):
-        q = queue.PriorityQueue()
-        prioritized_list = []
-
-        for comp in firing_queue:
-            q.put((self.components[comp], comp))
-
-        cur_priority = None
-        cur_parallel_step = set()
-        while not q.empty():
-            next_comp = q.get()
-            logger.debug('prioritize_queue: pqueue len: {0}, next component: {1}'.format(q.qsize(), next_comp))
-            if cur_priority is None:
-                cur_priority = next_comp[0]
-            elif next_comp[0] > cur_priority:
-                prioritized_list.append(cur_parallel_step)
-                cur_priority = next_comp[0]
-                cur_parallel_step = set()
-            cur_parallel_step.add(next_comp[1])
-
-        return prioritized_list
-    '''
 
     def run_time_step(self):
         #######
@@ -91,167 +77,77 @@ class Scheduler(object):
 
         logger.debug('Exit run_trial')
 
+    def run(self, run_termination_cond=None, trial_termination_cond=None):
+        '''
+        :param self:
+        :param run_termination_cond: (:keyword:`Condition`) - the :keyword:`Condition` that when met terminates the run
+        :param trial_termination_cond: (:keyword:`Condition`) - the :keyword:`Condition` that when met terminates each trial
+        '''
+        if run_termination_cond is None:
+            raise SchedulerError('Must specify a run termination Condition (run_termination_cond)')
+        elif not isinstance(run_termination_cond, Condition):
+            raise SchedulerError('Run termination condition (run_termination_cond) must be a Condition object')
+
+        if trial_termination_cond is None:
+            raise SchedulerError('Must specify a trial termination Condition (trial_termination_cond)')
+        elif not isinstance(trial_termination_cond, Condition):
+            raise SchedulerError('Trial termination condition (trial_termination_cond) must be a Condition object')
+
+        self.counts[TimeScale.RUN] = {vert.mechanism: 0 for vert in self.composition.graph.vertices}
+        self.counts[TimeScale.RUN][self] = 0
+        execution_queue = []
+
+        while not run_termination_cond:
+            self.counts[TimeScale.TRIAL] = {vert.mechanism: 0 for vert in self.composition.graph.vertices}
+            self.counts[TimeScale.TRIAL][self] = 0
+            # counts_useable is a dictionary intended to store the number of available "instances" of a certain mechanism that
+            # are available to expend in order to satisfy conditions such as "run B every two times A runs"
+            # specifically, counts_useable[a][b] = n indicates that there are n uses of a that are available for b to expend
+            # so, in the previous example B would check to see if counts_useable[A][B] is 2, in which case B can run
+            counts_useable = {vert.mechanism: {vert.mechanism: 0 for vert in self.composition.graph.vertices} for vert in self.composition.graph.vertices}
+
+            # this queue is used to determine which components to run next, and roughly uses a BFS
+            # add source nodes into the consideration queue to start
+            consideration_queue = [vert for vert in self.composition.graph.vertices if len(self.graph.get_incoming(vert)) == 0]
+            next_consideration_queue = []
+
+            while not trial_termination_cond:
+                for current_vert in consideration_queue:
+                    if self.condition_set[current_vert.mechanism].is_satisfied():
+                        execution_queue.append(current_vert.mechanism)
+                        self.counts_run[current_vert.mechanism] += 1
+                        self.counts_trial[current_vert.mechanism] += 1
+
+                        # current_vert's mechanism is added to the execution queue, so we now need to
+                        # reset all of the counts useable by current_vert's mechanism to 0
+                        for m in counts_useable:
+                            counts_useable[m][current_vert.mechanism] = 0
+                        # and increment all of the counts of current_vert's mechanism useable by other
+                        # mechanisms by 1
+                        for m in counts_useable:
+                            counts_useable[current_vert.mechanism][m] += 1
+                    # priorities could be used here, or alternatively using sets and checking for
+                    # parallelization
+                    for child in self.composition.graph.get_outgoing(current_vert.mechanism):
+                        next_consideration_queue.append(child)
+
+            # can execute the execution_queue here
+            logger.debug(' '.join(execution_queue))
+
+            consideration_queue = next_consideration_queue
+
+        return execution_queue
 
 def main():
-    from PsyNeuLink.Components.Mechanisms.ProcessingMechanisms.TransferMechanism import TransferMechanism
-    from PsyNeuLink.Components.Functions.Function import Linear
-    from PsyNeuLink.composition import Composition
     comp = Composition()
     A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
-    B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
-    C = TransferMechanism(function = Linear(intercept = 1.5), name = 'C')
-    Clock = TransferMechanism(function = Linear(), name = 'Clock')
-    T = TransferMechanism(function = Linear(), name = 'Terminal')
-
     comp.add_mechanism(A)
-    comp.add_mechanism(B)
-    comp.add_mechanism(C)
-    comp.add_mechanism(T)
-    comp.add_projection(A, MappingProjection(), B)
-    comp.add_projection(B, MappingProjection(), C)
-    comp.add_projection(C, MappingProjection(), T)
-    comp.analyze_graph()
+    sched = Scheduler(comp)
 
-    sched = Scheduler()
+    sched.condition_set.add_condition(A, Always())
 
-    sched.set_clock(Clock)
-    sched.add_vars([(A, 1), (B, 2), (C, 3), (T, 0)])
+    sched.run(run_termination_cond=AfterNCalls(A, 10), trial_termination_cond=AfterNCalls(A, 5))
 
-    test_constraints_dict = {
-        # every_n
-         "Test 1": [[(A, (Clock,), every_n_calls(1))],
-           [(B, (A,), every_n_calls(2))],
-           [(C, (B,), every_n_calls(3))],
-           [(T, (C,), every_n_calls(4))],
-           [(sched, (T,), terminal())]],
-
-        # Test 1 Expected Output: A AB A AB A ABC A AB A AB A ABC A AB A AB A ABC A AB A AB A ABCT
-
-        "Test 1b": [[(A, (Clock,), every_n_calls(1))],
-                   [(B, (A,), every_n_calls(2)),(B, (Clock,), after_n_calls(2))],
-                   [(C, (B,), every_n_calls(3))],
-                   [(T, (C,), every_n_calls(4))],
-                   [(sched, (T,), terminal())]],
-
-        # Test 1b Expected Output: A AB AB ABC AB AB ABC AB AB ABC AB AB ABCT
-
-        "Test 1c": [[(A, (Clock,), every_n_calls(1))],
-                   [(B, (A,), every_n_calls(2)),(B, (Clock,), after_n_calls(5))],
-                   [(C, (B,), every_n_calls(3))],
-                   [(T, (C,), every_n_calls(4))],
-                   [(sched, (T,), terminal())]],
-
-        # Test 1c Expected Output: A AB AB ABC AB AB ABC AB AB ABC AB AB ABCT
-
-        # after_n where C begins after 2 runs of B; C is terminal
-         "Test 2": [[(A, (Clock,), every_n_calls(1))],
-                    [(B, (A,), every_n_calls(2))],
-                    [(C, (B,), after_n_calls(2))],
-                    [(sched, (C,), terminal())]],
-
-        #Test 2 Expected Output: A AB A ABC
-
-        # after_n where C begins after 2 runs of B; runs for 10 time steps
-        "Test 3": [[(A, (Clock,), every_n_calls(1))],
-                   [(B, (A,), every_n_calls(2))],
-                   [(C, (B,), after_n_calls(2))],
-                   [(sched, (Clock,), num_time_steps(10))]],
-
-        # Test 3 Expected Output: A AB A ABC A ABC A ABC A ABC
-        # Note -- after_n means that C will run *each* time B runs after B has run n times
-
-        # after_n where C begins after 3 runs of B OR A; runs for 10 time steps
-        "Test 4": [[(A, (Clock,), every_n_calls(1))],
-                   [(B, (A,), every_n_calls(2))],
-                   [(C, (B, A), after_n_calls(3, op="OR"))],
-                   [(sched, (Clock,), num_time_steps(10))]],
-
-        # Test 4 Expected Output: A AB AC ABC AC ABC AC ABC AC ABC
-
-        "Test 4b": [[(A, (Clock,), every_n_calls(1))],
-                   [(B, (A,), every_n_calls(2))],
-                   [(C, (B,), after_n_calls(3)), (C, (A,), after_n_calls(3))],
-                   [(sched, (Clock,), num_time_steps(10))]],
-
-        # Test 4b Expected Output: A AB AC ABC AC ABC AC ABC AC ABC
-
-        # after_n where C begins after 2 runs of B AND A; runs for 10 time steps
-        "Test 5": [[(A, (Clock,), every_n_calls(1))],
-                    [(B, (A,), every_n_calls(2))],
-                    [(C, (B,A), after_n_calls(3))],
-                    [(sched, (Clock,), num_time_steps(10))]],
-
-        # Test 5 Expected Output: A AB A AB A ABC AC ABC AC ABC
-
-
-        # first n where A depends on the clock
-        "Test 6": [[(A, (Clock,), first_n_calls(5))],
-                   [(B, (A,), after_n_calls(5))],
-                   [(C, (B,), after_n_calls(1))],
-                   [(sched, (Clock,), num_time_steps(10))]],
-
-        # Test 6 Expected Output: A A A A ABC -- -- -- -- --
-
-        # terminal where trial ends when A OR B runs
-        "Test 7": [[(A, (Clock,), every_n_calls(1))],
-                   [(B, (A,), every_n_calls(2))],
-                   [(sched, (A,B), terminal(op="OR"))]],
-
-        # Test 7 Expected Output: A
-
-        # terminal where trial ends when A AND B have run
-        "Test 8": [[(A, (Clock,), every_n_calls(1))],
-                   [(B, (A,), every_n_calls(2))],
-                   [(sched, (A, B), terminal())]],
-
-        # Test 8 Expected Output: A AB
-
-        # if_finished where B runs when A is done
-        "Test 9": [[(A, (Clock,), every_n_calls(1))],
-                   [(B, (A,), if_finished())],
-                   [(sched, (Clock,), num_time_steps(5))]],
-
-        # Test 9 Expected Output: AB AB AB AB AB
-
-        # if_finished where B runs when A is done or A has run n times
-        "Test 10": [[(A, (Clock,), every_n_calls(1))],
-                   [(B, (A,), if_finished()), (B, (A,), after_n_calls(3))],
-                   [(sched, (Clock,), num_time_steps(5))]],
-
-        # Test 10 Expected Output: AB AB AB AB AB
-
-        # if_finished where C runs when A is and B has run n times
-        "Test 11": [[(A, (Clock,), every_n_calls(1))],
-                    [(B, (A,), every_n_calls(2))],
-                    [(C, (A,), if_finished())],
-                    [(C, (B,), after_n_calls(3))],
-                    [(sched, (C), terminal())]],
-
-        # Test 11 Expected Output: A AB A AB A ABC
-    }
-
-    # Set mechanism A to finished for testing
-    A.is_finished = True
-
-    print('=================================')
-
-    for test in sorted(test_constraints_dict.keys()):
-        sched = Scheduler()
-        sched.set_clock(Clock)
-        sched.add_vars([(A, 1), (B, 2), (C, 3), (T, 0)])
-        # for now it is unnecessary to change terminal conditions in test cases
-        # in between runs because the only requirement for the condition to
-        # function properly is that sched (or its previous dicarded instance
-        # is a Scheduler()
-        print('--- RUNNING {0} ---'.format(test))
-        sched.add_constraints(test_constraints_dict[test])
-
-        for var in sched.var_list:
-            var.component.new_trial()
-
-        comp.run(sched)
-
-        print('=================================')
 
 if __name__ == '__main__':
     main()
