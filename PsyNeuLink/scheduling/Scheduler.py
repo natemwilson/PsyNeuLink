@@ -30,6 +30,8 @@ class Scheduler(object):
         self.condition_set = condition_set if condition_set is not None else ConditionSet(scheduler=self)
         self.priorities = priorities
 
+        self.total_num_trials = 0
+
         self.counts = {ts: {} for ts in TimeScale}
         self.counts[TimeScale.RUN] = {vert.mechanism: 0 for vert in self.composition.graph.vertices}
         self.counts[TimeScale.RUN][self] = 0
@@ -77,15 +79,18 @@ class Scheduler(object):
                 consideration_queue = [vert.mechanism for vert in self.composition.graph.vertices if len(self.composition.graph.get_incoming(vert.mechanism)) == 0]
                 next_consideration_queue = []
 
-                while len(consideration_queue) > 0:
+                while len(consideration_queue) > 0 and not termination_conds[TimeScale.TRIAL].is_satisfied() and not termination_conds[TimeScale.RUN].is_satisfied():
+                    cur_time_step_exec = set()
                     logger.debug('trial, itercount {0}, consideration_queue {1}'.format(self.counts[TimeScale.TRIAL][self], ' '.join([str(x) for x in consideration_queue])))
                     for current_mech in consideration_queue:
                         for m in self.counts_useable:
                             logger.debug('Counts of {0} useable by'.format(m))
                             for m2 in self.counts_useable[m]:
                                 logger.debug('\t{0}: {1}'.format(m2, self.counts_useable[m][m2]))
+
                         if self.condition_set.conditions[current_mech].is_satisfied():
-                            execution_queue.append(current_mech)
+                            logger.debug('adding {0} to execution list'.format(current_mech))
+                            cur_time_step_exec.add(current_mech)
                             self.counts[TimeScale.RUN][current_mech] += 1
                             self.counts[TimeScale.TRIAL][current_mech] += 1
 
@@ -93,24 +98,31 @@ class Scheduler(object):
                             # reset all of the counts useable by current_mech's mechanism to 0
                             for m in self.counts_useable:
                                 self.counts_useable[m][current_mech] = 0
-                        # and increment all of the counts of current_mech's mechanism useable by other
-                        # mechanisms by 1
-                        for m in self.counts_useable:
-                            self.counts_useable[current_mech][m] += 1
+                            # and increment all of the counts of current_mech's mechanism useable by other
+                            # mechanisms by 1
+                            for m in self.counts_useable:
+                                self.counts_useable[current_mech][m] += 1
                         # priorities could be used here, or alternatively using sets and checking for
                         # parallelization
                         logger.debug('adding children of {0}: {1} to consideration'.format(current_mech, [str(c) for c in self.composition.graph.get_children(current_mech)]))
                         for child in self.composition.graph.get_children(current_mech):
                             next_consideration_queue.append(child)
 
+                    if len(cur_time_step_exec) > 1:
+                        execution_queue.append(cur_time_step_exec)
+                    elif len(cur_time_step_exec) == 1:
+                        execution_queue.append(cur_time_step_exec.pop())
                     consideration_queue = next_consideration_queue
                     next_consideration_queue = []
                     logger.debug(consideration_queue)
-                    self.counts[TimeScale.TRIAL][self] += 1
+
                     self.counts[TimeScale.RUN][self] += 1
+                    self.counts[TimeScale.TRIAL][self] += 1
 
                 # can execute the execution_queue here
                 logger.info(' '.join([str(x) for x in execution_queue]))
+
+            self.total_num_trials += 1
 
         return execution_queue
 
@@ -124,13 +136,14 @@ def main():
 
     sched = Scheduler(comp)
 
-    sched.condition_set.add_condition(A, Any(AtStep(0), EveryNCalls(B, 1)))
+    sched.condition_set.add_condition(A, EveryNSteps(1))
     sched.condition_set.add_condition(B, EveryNCalls(A, 2))
     logger.debug('condition set sched: {0}'.format(sched.condition_set.scheduler))
 
     logger.debug('Pre run')
     termination_conds = {ts: None for ts in TimeScale}
-    termination_conds[TimeScale.RUN] = AfterNCalls(B, 2, time_scale=TimeScale.RUN)
+    termination_conds[TimeScale.RUN] = AfterNCalls(B, 4, time_scale=TimeScale.RUN)
+    #termination_conds[TimeScale.RUN] = AfterStep(10, time_scale=TimeScale.RUN)
     termination_conds[TimeScale.TRIAL] = AfterNCalls(B, 2, time_scale=TimeScale.TRIAL)
     sched.run(termination_conds=termination_conds)
     logger.debug('Post run')

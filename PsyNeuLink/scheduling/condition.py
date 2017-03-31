@@ -192,12 +192,12 @@ class AtStep(Condition):
         super().__init__(n, func)
 
 class AfterStep(Condition):
-    def __init__(self, n):
-        def func(n):
+    def __init__(self, n, time_scale=TimeScale.TRIAL):
+        def func(n, time_scale):
             if self.scheduler is None:
                 raise ConditionError('{0}: self.scheduler is None - scheduler must be assigned'.format(type(self).__name__))
             return self.scheduler.counts[time_scale][self.scheduler] == n+1
-        super().__init__(n, func)
+        super().__init__(n, func, time_scale)
 
 class AfterNCalls(Condition):
     def __init__(self, dependency, n, time_scale=TimeScale.TRIAL):
@@ -205,17 +205,25 @@ class AfterNCalls(Condition):
             if self.scheduler is None:
                 raise ConditionError('{0}: self.scheduler is None - scheduler must be assigned'.format(type(self).__name__))
             num_calls = self.scheduler.counts[time_scale][dependency]
-            #logger.debug('{0} has reached {1} num_calls in {2}'.format(dependency, num_calls, time_scale.name))
+            logger.debug('{0} has reached {1} num_calls in {2}'.format(dependency, num_calls, time_scale.name))
             return num_calls >= n
         super().__init__(dependency, func, n)
 
-class EveryNSteps(Condition):
+class AfterNTrials(Condition):
     def __init__(self, n):
         def func(n):
             if self.scheduler is None:
                 raise ConditionError('{0}: self.scheduler is None - scheduler must be assigned'.format(type(self).__name__))
-            return self.scheduler.counts[time_scale][self.scheduler] % n == 0
+            return self.scheduler.total_num_trials >= n
         super().__init__(n, func)
+
+class EveryNSteps(Condition):
+    def __init__(self, n, time_scale=TimeScale.TRIAL):
+        def func(n, time_scale):
+            if self.scheduler is None:
+                raise ConditionError('{0}: self.scheduler is None - scheduler must be assigned'.format(type(self).__name__))
+            return self.scheduler.counts[time_scale][self.scheduler] % n == 0
+        super().__init__(n, func, time_scale)
 
 class EveryNCalls(Condition):
     def __init__(self, dependency, n):

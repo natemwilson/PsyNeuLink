@@ -21,38 +21,38 @@ def run_trial(scheduler, condition_termination):
     return output
 
 class TestScheduler:
-    def test_AfterNCalls_scheduler(self):
-        sched = Scheduler({}, set())
-        output = run_trial(sched, AfterStep(sched, 5))
-
-        expected_output = [set() for _ in range(5)]
-        assert output == expected_output
-
     def test_Any_end_before_one_finished(self):
+        comp = Composition()
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
-        c = Constraint(A,
-            condition_activation=Immediately(),
-            condition_repeat=Always(),
-            condition_termination=AfterNCalls(A, 10)
-        )
-        sched = Scheduler({A: 1}, set([c]))
-        output = run_trial(sched, Any(WhenTerminated(sched), AfterStep(sched, 5)))
+        for m in [A]:
+            comp.add_mechanism(m)
+        sched = Scheduler(comp)
 
-        expected_output = [set([A]) for _ in range(5)]
+        sched.condition_set.add_condition(A, EveryNSteps(1))
+
+        termination_conds = {ts: None for ts in TimeScale}
+        termination_conds[TimeScale.RUN] = AfterNTrials(1)
+        termination_conds[TimeScale.TRIAL] = Any(AfterNCalls(A, 10), AtStep(5))
+        output = sched.run(termination_conds=termination_conds)
+
+        expected_output = [A for _ in range(5)]
         assert output == expected_output
 
     def test_All_end_after_one_finished(self):
+        comp = Composition()
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
-        c = Constraint(A,
-            condition_activation=Immediately(),
-            condition_repeat=Always(),
-            condition_termination=AfterNCalls(A, 5)
-        )
-        sched = Scheduler({A: 1}, set([c]))
-        output = run_trial(sched, All(WhenTerminated(sched), AfterStep(sched, 10)))
+        for m in [A]:
+            comp.add_mechanism(m)
+        sched = Scheduler(comp)
 
-        expected_output = [set([A]) for _ in range(5)]
-        expected_output.extend([set() for _ in range(5)])
+        sched.condition_set.add_condition(A, EveryNSteps(1))
+
+        termination_conds = {ts: None for ts in TimeScale}
+        termination_conds[TimeScale.RUN] = AfterNTrials(1)
+        termination_conds[TimeScale.TRIAL] = Any(AfterNCalls(A, 5), AtStep(10))
+        output = sched.run(termination_conds=termination_conds)
+
+        expected_output = [A for _ in range(5)]
         assert output == expected_output
 
     def test_AtStep(self):
@@ -133,30 +133,32 @@ class TestScheduler:
 
     # tests below are copied from old scheduler, need renaming
     def test_1(self):
+        comp = Composition()
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
         B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
         C = TransferMechanism(function = Linear(intercept = 1.5), name = 'C')
+        for m in [A,B,C]:
+            comp.add_mechanism(m)
+        comp.add_projection(A, MappingProjection(), B)
+        comp.add_projection(B, MappingProjection(), C)
 
-        c1 = Constraint(A)     # implicit Immediately, Always, Never
-        c2 = Constraint(B, condition_repeat=EveryNCalls(A, 2, owner=B))
-        c3 = Constraint(C, condition_repeat=EveryNCalls(B, 3, owner=C))
-        sched = Scheduler({A: 1, B: 2, C: 3}, set([c1, c2, c3]))
-        output = run_trial(sched, AfterNCalls(C, 4))
+        sched = Scheduler(comp)
 
-        #import pprint
-        #pprint.pprint(output)
+        sched.condition_set.add_condition(A, EveryNSteps(1))
+        sched.condition_set.add_condition(B, EveryNCalls(A, 2))
+        sched.condition_set.add_condition(C, EveryNCalls(B, 3))
 
-        # A  A  A,B  A  A,B  A  A,B  A,C
-        #       A,B  A  A,B  A  A,B  A,C
-        #       A,B  A  A,B  A  A,B  A,C
-        #       A,B  A  A,B  A  A,B  A,C
-        expected_output = [[A], [A],
-            [A,B], [A], [A,B], [A], [A,B], [A,C],
-            [A,B], [A], [A,B], [A], [A,B], [A,C],
-            [A,B], [A], [A,B], [A], [A,B], [A,C],
-            [A,B], [A], [A,B], [A], [A,B], [A,C],
+        termination_conds = {ts: None for ts in TimeScale}
+        termination_conds[TimeScale.RUN] = AfterNTrials(1)
+        termination_conds[TimeScale.TRIAL] = AfterNCalls(C, 4, time_scale=TimeScale.TRIAL)
+        output = sched.run(termination_conds=termination_conds)
+
+        expected_output = [
+            A, A, B, A, A, B, A, A, B, C,
+            A, A, B, A, A, B, A, A, B, C,
+            A, A, B, A, A, B, A, A, B, C,
+            A, A, B, A, A, B, A, A, B, C,
         ]
-        expected_output = [set(x) for x in expected_output]
         #pprint.pprint(expected_output)
         assert output == expected_output
 
@@ -365,17 +367,23 @@ class TestScheduler:
         expected_output = [set(x) for x in expected_output]
         assert output == expected_output
 
-    def test_priority_3_CBA(self):
+    def test_linearcomp_AAB(self):
+        comp = Composition()
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
         B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
-        C = TransferMechanism(function = Linear(intercept = 1.5), name = 'C')
+        for m in [A, B]:
+            comp.add_mechanism(m)
+        comp.add_projection(A, MappingProjection(), B)
 
-        c1 = Constraint(A)     # implicit Immediately, Always, Never
-        c2 = Constraint(B, condition_repeat=EveryNCalls(A, 2, owner=B))
-        c3 = Constraint(C, condition_activation=AfterNCalls(B, 2), condition_repeat=EveryNCalls(B, 1, owner=C))
-        sched = Scheduler({A: 3, B: 2, C: 1}, set([c1, c2, c3]))
-        output = run_trial(sched, AfterStep(sched, 17))
+        sched = Scheduler(comp)
 
-        expected_output = [[A], [A], [B], [A], [A], [B], [A], [A], [C], [B], [A], [C], [A], [B], [A], [C], [A]]
-        expected_output = [set(x) for x in expected_output]
+        sched.condition_set.add_condition(A, EveryNSteps(1))
+        sched.condition_set.add_condition(B, EveryNCalls(A, 2))
+
+        termination_conds = {ts: None for ts in TimeScale}
+        termination_conds[TimeScale.RUN] = AfterNCalls(B, 2, time_scale=TimeScale.RUN)
+        termination_conds[TimeScale.TRIAL] = AfterNCalls(B, 2, time_scale=TimeScale.TRIAL)
+        output = sched.run(termination_conds=termination_conds)
+
+        expected_output = [A, A, B, A, A, B]
         assert output == expected_output
