@@ -196,7 +196,7 @@ class AfterStep(Condition):
         def func(n, time_scale):
             if self.scheduler is None:
                 raise ConditionError('{0}: self.scheduler is None - scheduler must be assigned'.format(type(self).__name__))
-            return self.scheduler.counts[time_scale][self.scheduler] == n+1
+            return self.scheduler.counts[time_scale][self.scheduler] >= n+1
         super().__init__(n, func, time_scale)
 
 class AfterNCalls(Condition):
@@ -216,6 +216,14 @@ class AfterNTrials(Condition):
                 raise ConditionError('{0}: self.scheduler is None - scheduler must be assigned'.format(type(self).__name__))
             return self.scheduler.total_num_trials >= n
         super().__init__(n, func)
+
+class BeforeStep(Condition):
+    def __init__(self, n, time_scale=TimeScale.TRIAL):
+        def func(n, time_scale):
+            if self.scheduler is None:
+                raise ConditionError('{0}: self.scheduler is None - scheduler must be assigned'.format(type(self).__name__))
+            return self.scheduler.total_num_passes <= n
+        super().__init__(n, func, time_scale)
 
 class EveryNSteps(Condition):
     def __init__(self, n, time_scale=TimeScale.TRIAL):

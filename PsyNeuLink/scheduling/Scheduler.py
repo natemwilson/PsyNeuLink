@@ -30,7 +30,12 @@ class Scheduler(object):
         self.condition_set = condition_set if condition_set is not None else ConditionSet(scheduler=self)
         self.priorities = priorities
 
+        # TODO: refactor these counts
+        #       what we need is one to count the total number of trials, passes? (basically some notion of a time step)
+        #                   and one to count the total number of time steps in the run, the trial, etc.
+        #       these are hacky and should be changed, but here to quickly demonstrate the viability of the current algorithm
         self.total_num_trials = 0
+        self.total_num_passes = 0
 
         self.counts = {ts: {} for ts in TimeScale}
         self.counts[TimeScale.RUN] = {vert.mechanism: 0 for vert in self.composition.graph.vertices}
@@ -119,6 +124,7 @@ class Scheduler(object):
                     self.counts[TimeScale.RUN][self] += 1
                     self.counts[TimeScale.TRIAL][self] += 1
 
+                self.total_num_passes += 1
                 # can execute the execution_queue here
                 logger.info(' '.join([str(x) for x in execution_queue]))
 
