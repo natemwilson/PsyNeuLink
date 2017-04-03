@@ -34,20 +34,27 @@ class Scheduler(object):
         #       what we need is one to count the total number of trials, passes? (basically some notion of a time step)
         #                   and one to count the total number of time steps in the run, the trial, etc.
         #       these are hacky and should be changed, but here to quickly demonstrate the viability of the current algorithm
-        self.total_num_trials = 0
-        self.total_num_passes = 0
+        self._init_counts()
 
-        self.counts = {ts: {} for ts in TimeScale}
-        self.counts[TimeScale.RUN] = {vert.mechanism: 0 for vert in self.composition.graph.vertices}
-        self.counts[TimeScale.RUN][self] = 0
-        self.counts[TimeScale.TRIAL] = {vert.mechanism: 0 for vert in self.composition.graph.vertices}
-        self.counts[TimeScale.TRIAL][self] = 0
-
+    def _init_counts(self):
+        # stores the total number of TimeScales that have occurred during the lifetime of this scheduler
+        self.counts_total = {ts: 0 for ts in TimeScale}
+        # stores the number of occurrences of a mechanism or the scheduler through the time scale's loop
+        # i.e. the number of trials in a run, or the number of time steps in a trial, or the number of times mech has occurred in a trial
+        self.counts_current = {ts: None for ts in TimeScale}
+        # counts_useable is a dictionary intended to store the number of available "instances" of a certain mechanism that
+        # are available to expend in order to satisfy conditions such as "run B every two times A runs"
+        # specifically, counts_useable[a][b] = n indicates that there are n uses of a that are available for b to expend
+        # so, in the previous example B would check to see if counts_useable[A][B] is 2, in which case B can run
         self.counts_useable = {vert.mechanism: {vert.mechanism: 0 for vert in self.composition.graph.vertices} for vert in self.composition.graph.vertices}
 
-    def _reset(self, time_scale):
-        for count in self.counts[time_scale]:
-            self.counts[time_scale][count] = 0
+        for ts in TimeScale:
+            self.counts_current[ts] = {vert.mechanism: 0 for vert in self.composition.graph.vertices}
+            self.counts_current[ts][self] = 0
+
+    def _reset_count(self, count, time_scale):
+        for c in count[time_scale]:
+            count[time_scale][c] = 0
 
     def run(self, termination_conds):
         '''
@@ -63,30 +70,35 @@ class Scheduler(object):
                     logger.debug('Setting scheduler of {0} to self ({1})'.format(termination_conds[tc], self))
                     termination_conds[tc].scheduler = self
 
-        self.counts[TimeScale.RUN] = {vert.mechanism: 0 for vert in self.composition.graph.vertices}
-        self.counts[TimeScale.RUN][self] = 0
+        def has_reached_termination(self, time_scale=None):
+            term = True
+            if time_scale is None:
+                for ts in termination_conds:
+                    term = term and termination_conds[ts].is_satisfied()
+            else:
+                term = term and termination_conds[time_scale].is_satisfied()
+
+            return term
+
         execution_queue = []
-
         logger.debug('runterm: {0}'.format(termination_conds[TimeScale.RUN]))
-        while not termination_conds[TimeScale.RUN].is_satisfied():
-            self.counts[TimeScale.TRIAL] = {vert.mechanism: 0 for vert in self.composition.graph.vertices}
-            self.counts[TimeScale.TRIAL][self] = 0
-            logger.debug('run, itercount {0}'.format(self.counts[TimeScale.RUN][self]))
-            # counts_useable is a dictionary intended to store the number of available "instances" of a certain mechanism that
-            # are available to expend in order to satisfy conditions such as "run B every two times A runs"
-            # specifically, counts_useable[a][b] = n indicates that there are n uses of a that are available for b to expend
-            # so, in the previous example B would check to see if counts_useable[A][B] is 2, in which case B can run
-            self.counts_useable = {vert.mechanism: {vert.mechanism: 0 for vert in self.composition.graph.vertices} for vert in self.composition.graph.vertices}
 
+        self._reset_count(self.counts_current, TimeScale.RUN)
+        while not termination_conds[TimeScale.RUN].is_satisfied():
+            logger.debug('run, num trials in run: {0}'.format(self.counts_current[TimeScale.RUN][self]))
+
+            self.counts_useable = {vert.mechanism: {vert.mechanism: 0 for vert in self.composition.graph.vertices} for vert in self.composition.graph.vertices}
+            self._reset_count(self.counts_current, TimeScale.TRIAL)
             while not termination_conds[TimeScale.TRIAL].is_satisfied() and not termination_conds[TimeScale.RUN].is_satisfied():
                 # this queue is used to determine which components to run next, and roughly uses a BFS
                 # add source nodes into the consideration queue to start
                 consideration_queue = [vert.mechanism for vert in self.composition.graph.vertices if len(self.composition.graph.get_incoming(vert.mechanism)) == 0]
                 next_consideration_queue = []
 
+                self._reset_count(self.counts_current, TimeScale.PASS)
                 while len(consideration_queue) > 0 and not termination_conds[TimeScale.TRIAL].is_satisfied() and not termination_conds[TimeScale.RUN].is_satisfied():
                     cur_time_step_exec = set()
-                    logger.debug('trial, itercount {0}, consideration_queue {1}'.format(self.counts[TimeScale.TRIAL][self], ' '.join([str(x) for x in consideration_queue])))
+                    logger.debug('trial, itercount {0}, consideration_queue {1}'.format(self.counts_current[TimeScale.TRIAL][self], ' '.join([str(x) for x in consideration_queue])))
                     for current_mech in consideration_queue:
                         for m in self.counts_useable:
                             logger.debug('Counts of {0} useable by'.format(m))
@@ -96,8 +108,10 @@ class Scheduler(object):
                         if self.condition_set.conditions[current_mech].is_satisfied():
                             logger.debug('adding {0} to execution list'.format(current_mech))
                             cur_time_step_exec.add(current_mech)
-                            self.counts[TimeScale.RUN][current_mech] += 1
-                            self.counts[TimeScale.TRIAL][current_mech] += 1
+
+                            for ts in TimeScale:
+                                self.counts_current[ts][current_mech] += 1
+                                self.counts_current[ts][self] += 1
 
                             # current_mech's mechanism is added to the execution queue, so we now need to
                             # reset all of the counts useable by current_mech's mechanism to 0
@@ -107,6 +121,7 @@ class Scheduler(object):
                             # mechanisms by 1
                             for m in self.counts_useable:
                                 self.counts_useable[current_mech][m] += 1
+
                         # priorities could be used here, or alternatively using sets and checking for
                         # parallelization
                         logger.debug('adding children of {0}: {1} to consideration'.format(current_mech, [str(c) for c in self.composition.graph.get_children(current_mech)]))
@@ -121,15 +136,13 @@ class Scheduler(object):
                     next_consideration_queue = []
                     logger.debug(consideration_queue)
 
-                    self.counts[TimeScale.RUN][self] += 1
-                    self.counts[TimeScale.TRIAL][self] += 1
-
-                self.total_num_passes += 1
                 # can execute the execution_queue here
                 logger.info(' '.join([str(x) for x in execution_queue]))
+                self.counts_total[TimeScale.PASS] += 1
 
-            self.total_num_trials += 1
+            self.counts_total[TimeScale.TRIAL] += 1
 
+        self.counts_total[TimeScale.RUN] += 1
         return execution_queue
 
 def main():

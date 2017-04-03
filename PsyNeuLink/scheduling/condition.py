@@ -186,7 +186,7 @@ class AtStep(Condition):
             if self.scheduler is None:
                 raise ConditionError('{0}: self.scheduler is None - scheduler must be assigned'.format(type(self).__name__))
             try:
-                return self.scheduler.counts[time_scale][self.scheduler] == n
+                return self.scheduler.counts_current[time_scale][self.scheduler] == n
             except KeyError as e:
                 raise ConditionError('{0}: {1}, is time_scale set correctly? Currently: {2}'.format(type(self).__name__, e, time_scale))
         super().__init__(n, func)
@@ -196,7 +196,7 @@ class AfterStep(Condition):
         def func(n, time_scale):
             if self.scheduler is None:
                 raise ConditionError('{0}: self.scheduler is None - scheduler must be assigned'.format(type(self).__name__))
-            return self.scheduler.counts[time_scale][self.scheduler] >= n+1
+            return self.scheduler.counts_current[time_scale][self.scheduler] >= n+1
         super().__init__(n, func, time_scale)
 
 class AfterNCalls(Condition):
@@ -204,7 +204,7 @@ class AfterNCalls(Condition):
         def func(dependency, n):
             if self.scheduler is None:
                 raise ConditionError('{0}: self.scheduler is None - scheduler must be assigned'.format(type(self).__name__))
-            num_calls = self.scheduler.counts[time_scale][dependency]
+            num_calls = self.scheduler.counts_current[time_scale][dependency]
             logger.debug('{0} has reached {1} num_calls in {2}'.format(dependency, num_calls, time_scale.name))
             return num_calls >= n
         super().__init__(dependency, func, n)
@@ -214,7 +214,7 @@ class AfterNTrials(Condition):
         def func(n):
             if self.scheduler is None:
                 raise ConditionError('{0}: self.scheduler is None - scheduler must be assigned'.format(type(self).__name__))
-            return self.scheduler.total_num_trials >= n
+            return self.scheduler.counts_total[TimeScale.TRIAL] >= n
         super().__init__(n, func)
 
 class BeforeStep(Condition):
@@ -222,7 +222,7 @@ class BeforeStep(Condition):
         def func(n, time_scale):
             if self.scheduler is None:
                 raise ConditionError('{0}: self.scheduler is None - scheduler must be assigned'.format(type(self).__name__))
-            return self.scheduler.total_num_passes <= n
+            return self.scheduler.counts_current[time_scale][self.scheduler] <= n
         super().__init__(n, func, time_scale)
 
 class EveryNSteps(Condition):
@@ -230,7 +230,7 @@ class EveryNSteps(Condition):
         def func(n, time_scale):
             if self.scheduler is None:
                 raise ConditionError('{0}: self.scheduler is None - scheduler must be assigned'.format(type(self).__name__))
-            return self.scheduler.counts[time_scale][self.scheduler] % n == 0
+            return self.scheduler.counts_current[time_scale][self.scheduler] % n == 0
         super().__init__(n, func, time_scale)
 
 class EveryNCalls(Condition):
