@@ -25,6 +25,9 @@ class ConditionSet(object):
         # even though conditions may be added in arbitrary iterables, they are stored internally as dicts of sets
         self.conditions = conditions
 
+    def __contains__(self, item):
+        return item in self.conditions
+
     def add_condition(self, owner, condition):
         '''
         :param: self:
@@ -43,7 +46,6 @@ class ConditionSet(object):
         '''
         for owner in conditions:
             self.conditions[owner] = conditions[owner]
-
 
 class Condition(object):
     def __init__(self, dependencies, func, *args, **kwargs):
@@ -164,14 +166,8 @@ class Any(Condition):
         return False
 
 ######################################################################
-# Included Activation, Repeat, and Termination Conditions
+# Included Conditions
 ######################################################################
-class Immediately(Condition):
-    def __init__(self):
-        super().__init__(True, lambda x: x)
-
-# identical to Immediately, intended as repeat condition
-# renamed for user comprehension
 class Always(Condition):
     def __init__(self):
         super().__init__(True, lambda x: x)

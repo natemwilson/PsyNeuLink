@@ -1,13 +1,7 @@
 import logging
 
 from PsyNeuLink.Globals.TimeScale import TimeScale
-
-#only for testing purposes in main
-from PsyNeuLink.scheduling.condition import *
-from PsyNeuLink.composition import Composition
-from PsyNeuLink.Components.Mechanisms.ProcessingMechanisms.TransferMechanism import TransferMechanism
-from PsyNeuLink.Components.Projections.MappingProjection import MappingProjection
-from PsyNeuLink.Components.Functions.Function import Linear
+from PsyNeuLink.scheduling.condition import ConditionSet, Never
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +24,6 @@ class Scheduler(object):
         self.condition_set = condition_set if condition_set is not None else ConditionSet(scheduler=self)
         self.priorities = priorities
 
-        # TODO: refactor these counts
-        #       what we need is one to count the total number of trials, passes? (basically some notion of a time step)
-        #                   and one to count the total number of time steps in the run, the trial, etc.
-        #       these are hacky and should be changed, but here to quickly demonstrate the viability of the current algorithm
         self._init_counts()
 
     def _init_counts(self):
@@ -56,11 +46,24 @@ class Scheduler(object):
         for c in count[time_scale]:
             count[time_scale][c] = 0
 
-    def run(self, termination_conds):
-        '''
-        :param self:
-        :param termination_conds: (dict) - a mapping from :keyword:`TimeScale`s to :keyword:`Condition`s that when met terminate the execution of the specified :keyword:`TimeScale`
-        '''
+    ################################################################################
+    # Validation methods
+    #   to provide the user with info if they do something odd
+    ################################################################################
+    def _validate_run_state(self, termination_conds):
+        self._validate_condition_set()
+        self._validate_termination(termination_conds)
+
+    def _validate_condition_set(self):
+        unspecified_mechs = []
+        for vert in self.composition.graph.vertices:
+            if vert.mechanism not in self.condition_set:
+                self.condition_set.add_condition(vert.mechanism, Never())
+                unspecified_mechs.append(vert.mechanism)
+        if len(unspecified_mechs) > 0:
+            logger.warning('These mechanisms have no Conditions specified, and will NOT be scheduled: {0}'.format(unspecified_mechs))
+
+    def _validate_termination(self, termination_conds):
         for tc in termination_conds:
             if termination_conds[tc] is None:
                 if tc in [TimeScale.RUN, TimeScale.TRIAL]:
@@ -69,6 +72,16 @@ class Scheduler(object):
                 if termination_conds[tc].scheduler is None:
                     logger.debug('Setting scheduler of {0} to self ({1})'.format(termination_conds[tc], self))
                     termination_conds[tc].scheduler = self
+
+    ################################################################################
+    # Run methods
+    ################################################################################
+    def run(self, termination_conds):
+        '''
+        :param self:
+        :param termination_conds: (dict) - a mapping from :keyword:`TimeScale`s to :keyword:`Condition`s that when met terminate the execution of the specified :keyword:`TimeScale`
+        '''
+        self._validate_run_state(termination_conds)
 
         def has_reached_termination(self, time_scale=None):
             term = True
@@ -96,6 +109,7 @@ class Scheduler(object):
                 next_consideration_queue = []
 
                 self._reset_count(self.counts_current, TimeScale.PASS)
+                exeuction_queue_has_changed = False
                 while len(consideration_queue) > 0 and not termination_conds[TimeScale.TRIAL].is_satisfied() and not termination_conds[TimeScale.RUN].is_satisfied():
                     cur_time_step_exec = set()
                     logger.debug('trial, itercount {0}, consideration_queue {1}'.format(self.counts_current[TimeScale.TRIAL][self], ' '.join([str(x) for x in consideration_queue])))
@@ -108,6 +122,7 @@ class Scheduler(object):
                         if self.condition_set.conditions[current_mech].is_satisfied():
                             logger.debug('adding {0} to execution list'.format(current_mech))
                             cur_time_step_exec.add(current_mech)
+                            exeuction_queue_has_changed = True
 
                             for ts in TimeScale:
                                 self.counts_current[ts][current_mech] += 1
@@ -136,6 +151,11 @@ class Scheduler(object):
                     next_consideration_queue = []
                     logger.debug(consideration_queue)
 
+                if not exeuction_queue_has_changed:
+                    execution_queue.append(set())
+                    for ts in TimeScale:
+                        self.counts_current[ts][self] += 1
+
                 # can execute the execution_queue here
                 logger.info(' '.join([str(x) for x in execution_queue]))
                 self.counts_total[TimeScale.PASS] += 1
@@ -144,29 +164,3 @@ class Scheduler(object):
 
         self.counts_total[TimeScale.RUN] += 1
         return execution_queue
-
-def main():
-    comp = Composition()
-    A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
-    B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
-    for m in [A, B]:
-        comp.add_mechanism(m)
-    comp.add_projection(A, MappingProjection(), B)
-
-    sched = Scheduler(comp)
-
-    sched.condition_set.add_condition(A, EveryNSteps(1))
-    sched.condition_set.add_condition(B, EveryNCalls(A, 2))
-    logger.debug('condition set sched: {0}'.format(sched.condition_set.scheduler))
-
-    logger.debug('Pre run')
-    termination_conds = {ts: None for ts in TimeScale}
-    termination_conds[TimeScale.RUN] = AfterNCalls(B, 4, time_scale=TimeScale.RUN)
-    #termination_conds[TimeScale.RUN] = AfterStep(10, time_scale=TimeScale.RUN)
-    termination_conds[TimeScale.TRIAL] = AfterNCalls(B, 2, time_scale=TimeScale.TRIAL)
-    sched.run(termination_conds=termination_conds)
-    logger.debug('Post run')
-
-if __name__ == '__main__':
-    main()
-

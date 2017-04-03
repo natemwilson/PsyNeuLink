@@ -6,7 +6,6 @@ from PsyNeuLink.Components.Projections.MappingProjection import MappingProjectio
 from PsyNeuLink.Components.Functions.Function import Linear
 from PsyNeuLink.composition import Composition
 from PsyNeuLink.scheduling.Scheduler import Scheduler
-from PsyNeuLink.scheduling.Constraint import Constraint
 from PsyNeuLink.scheduling.condition import *
 
 logger = logging.getLogger(__name__)
@@ -56,15 +55,42 @@ class TestScheduler:
         assert output == expected_output
 
     def test_AtStep(self):
+        comp = Composition()
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
-        sched = Scheduler({A: 1})
-        c = Constraint(A, condition_activation=AtStep(sched, 1))
-        sched.add_constraints(set([c]))
+        comp.add_mechanism(A)
 
-        output = run_trial(sched, AfterStep(sched, 5))
+        sched = Scheduler(comp)
+        sched.condition_set.add_condition(A, AtStep(1))
 
-        expected_output = [[A], [A], [A], [A], [A]]
-        expected_output = [set(x) for x in expected_output]
+        termination_conds = {ts: None for ts in TimeScale}
+        termination_conds[TimeScale.RUN] = AfterNTrials(1)
+        termination_conds[TimeScale.TRIAL] = AtStep(5)
+        output = sched.run(termination_conds=termination_conds)
+       # output = run_trial(sched, AfterStep(sched, 5))
+
+        expected_output = [set(), A, set(), set(), set()]
+        assert output == expected_output
+
+    def test_AtStep_underconstrained(self):
+        comp = Composition()
+        A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
+        B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
+        C = TransferMechanism(function = Linear(intercept = 1.5), name = 'C')
+        for m in [A,B,C]:
+            comp.add_mechanism(m)
+        comp.add_projection(A, MappingProjection(), B)
+        comp.add_projection(B, MappingProjection(), C)
+
+        sched = Scheduler(comp)
+        sched.condition_set.add_condition(A, AtStep(1))
+
+        termination_conds = {ts: None for ts in TimeScale}
+        termination_conds[TimeScale.RUN] = AfterNTrials(1)
+        termination_conds[TimeScale.TRIAL] = AtStep(5)
+        output = sched.run(termination_conds=termination_conds)
+       # output = run_trial(sched, AfterStep(sched, 5))
+
+        expected_output = [set(), A, set(), set(), set()]
         assert output == expected_output
 
     def test_AtStep_in_middle(self):
@@ -162,6 +188,36 @@ class TestScheduler:
         #pprint.pprint(expected_output)
         assert output == expected_output
 
+    def test_1b(self):
+        comp = Composition()
+        A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
+        B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
+        C = TransferMechanism(function = Linear(intercept = 1.5), name = 'C')
+        for m in [A,B,C]:
+            comp.add_mechanism(m)
+        comp.add_projection(A, MappingProjection(), B)
+        comp.add_projection(B, MappingProjection(), C)
+
+        sched = Scheduler(comp)
+
+        sched.condition_set.add_condition(A, EveryNSteps(1))
+        sched.condition_set.add_condition(B, Any(EveryNCalls(A, 2), AfterStep(2)))
+        sched.condition_set.add_condition(C, EveryNCalls(B, 3))
+
+        termination_conds = {ts: None for ts in TimeScale}
+        termination_conds[TimeScale.RUN] = AfterNTrials(1)
+        termination_conds[TimeScale.TRIAL] = AfterNCalls(C, 4, time_scale=TimeScale.TRIAL)
+        output = sched.run(termination_conds=termination_conds)
+
+        expected_output = [
+            A, A, B, A, B, A, B, C,
+               A, B, A, B, A, B, C,
+               A, B, A, B, A, B, C,
+               A, B, A, B, A, B, C,
+        ]
+        #pprint.pprint(expected_output)
+        assert output == expected_output
+
     def test_2(self):
         comp = Composition()
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
@@ -247,7 +303,6 @@ class TestScheduler:
         assert output == expected_output
 
     def test_6(self):
-        logger.warning('Enter test 6')
         comp = Composition()
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
         B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
