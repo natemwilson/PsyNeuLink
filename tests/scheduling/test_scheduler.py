@@ -308,21 +308,6 @@ class TestScheduler:
         #pprint.pprint(output)
         assert output == expected_output
 
-    def test_5(self):
-        A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
-        B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
-        C = TransferMechanism(function = Linear(intercept = 1.5), name = 'C')
-
-        c1 = Constraint(A)     # implicit Immediately, Always, Never
-        c2 = Constraint(B, condition_repeat=EveryNCalls(A, 2, owner=B))
-        c3 = Constraint(C, condition_activation=All(AfterNCalls(A, 3), AfterNCalls(B, 3)))
-        sched = Scheduler({A: 1, B: 2, C: 3}, set([c1, c2, c3]))
-        output = run_trial(sched, AfterStep(sched, 10))
-
-        expected_output = [[A], [A], [A,B], [A], [A,B], [A], [A,B], [A,C], [A,B,C], [A,C]]
-        expected_output = [set(x) for x in expected_output]
-        assert output == expected_output
-
     def test_6(self):
         comp = Composition()
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
@@ -379,131 +364,182 @@ class TestScheduler:
         assert output == expected_output
 
     def test_7(self):
+        comp = Composition()
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
         B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
+        for m in [A, B]:
+            comp.add_mechanism(m)
+        comp.add_projection(A, MappingProjection(), B)
 
-        c1 = Constraint(A)     # implicit Immediately, Always, Never
-        c2 = Constraint(B, condition_repeat=EveryNCalls(A, 2, owner=B))
-        sched = Scheduler({A: 1, B: 2}, set([c1, c2]))
-        output = run_trial(sched, Any(AfterNCalls(A, 1), AfterNCalls(B, 1)))
+        sched = Scheduler(comp)
 
-        expected_output = [[A]]
-        expected_output = [set(x) for x in expected_output]
+        sched.condition_set.add_condition(A, EveryNSteps(1))
+        sched.condition_set.add_condition(B, EveryNCalls(A, 2))
+
+        termination_conds = {ts: None for ts in TimeScale}
+        termination_conds[TimeScale.RUN] = AfterNTrials(1)
+        termination_conds[TimeScale.TRIAL] = Any(AfterNCalls(A, 1), AfterNCalls(B, 1))
+        output = sched.run(termination_conds=termination_conds)
+
+        expected_output = [A]
         assert output == expected_output
 
     def test_8(self):
+        comp = Composition()
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
         B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
+        for m in [A, B]:
+            comp.add_mechanism(m)
+        comp.add_projection(A, MappingProjection(), B)
 
-        c1 = Constraint(A)     # implicit Immediately, Always, Never
-        c2 = Constraint(B, condition_repeat=EveryNCalls(A, 2, owner=B))
-        sched = Scheduler({A: 1, B: 2}, set([c1, c2]))
-        output = run_trial(sched, All(AfterNCalls(A, 1), AfterNCalls(B, 1)))
+        sched = Scheduler(comp)
 
-        expected_output = [[A], [A], [A,B]]
-        expected_output = [set(x) for x in expected_output]
+        sched.condition_set.add_condition(A, EveryNSteps(1))
+        sched.condition_set.add_condition(B, EveryNCalls(A, 2))
+
+        termination_conds = {ts: None for ts in TimeScale}
+        termination_conds[TimeScale.RUN] = AfterNTrials(1)
+        termination_conds[TimeScale.TRIAL] = All(AfterNCalls(A, 1), AfterNCalls(B, 1))
+        output = sched.run(termination_conds=termination_conds)
+
+        expected_output = [A, A, B]
         assert output == expected_output
 
     def test_9(self):
+        comp = Composition()
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
         A.is_finished = True
         B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
+        for m in [A, B]:
+            comp.add_mechanism(m)
+        comp.add_projection(A, MappingProjection(), B)
 
-        c1 = Constraint(A)     # implicit Immediately, Always, Never
-        c2 = Constraint(B, condition_repeat=WhenFinished(A))
-        sched = Scheduler({A: 1, B: 2}, set([c1, c2]))
-        output = run_trial(sched, AfterStep(sched, 5))
+        sched = Scheduler(comp)
 
-        expected_output = [[A,B], [A,B], [A,B], [A,B], [A,B]]
-        expected_output = [set(x) for x in expected_output]
+        sched.condition_set.add_condition(A, EveryNSteps(1))
+        sched.condition_set.add_condition(B, WhenFinished(A))
+
+        termination_conds = {ts: None for ts in TimeScale}
+        termination_conds[TimeScale.RUN] = AfterNTrials(1)
+        termination_conds[TimeScale.TRIAL] = AtStep(5)
+        output = sched.run(termination_conds=termination_conds)
+
+        expected_output = [A, B, A, B, A]
         assert output == expected_output
 
+
     def test_9b(self):
+        comp = Composition()
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
         A.is_finished = False
         B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
+        for m in [A, B]:
+            comp.add_mechanism(m)
+        comp.add_projection(A, MappingProjection(), B)
 
-        c1 = Constraint(A)     # implicit Immediately, Always, Never
-        c2 = Constraint(B, condition_repeat=WhenFinished(A))
-        sched = Scheduler({A: 1, B: 2}, set([c1, c2]))
-        output = run_trial(sched, AfterStep(sched, 5))
+        sched = Scheduler(comp)
 
-        expected_output = [[A], [A], [A], [A], [A]]
-        expected_output = [set(x) for x in expected_output]
+        sched.condition_set.add_condition(A, EveryNSteps(1))
+        sched.condition_set.add_condition(B, WhenFinished(A))
+
+        termination_conds = {ts: None for ts in TimeScale}
+        termination_conds[TimeScale.RUN] = AfterNTrials(1)
+        termination_conds[TimeScale.TRIAL] = AtStep(5)
+        output = sched.run(termination_conds=termination_conds)
+
+        expected_output = [A, A, A, A, A]
         assert output == expected_output
 
     def test_10(self):
+        comp = Composition()
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
         A.is_finished = True
         B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
 
-        c1 = Constraint(A)     # implicit Immediately, Always, Never
-        c2 = Constraint(B, condition_repeat=Any(WhenFinished(A), AfterNCalls(A, 3)))
-        sched = Scheduler({A: 1, B: 2}, set([c1, c2]))
-        output = run_trial(sched, AfterStep(sched, 5))
+        for m in [A, B]:
+            comp.add_mechanism(m)
+        comp.add_projection(A, MappingProjection(), B)
 
-        expected_output = [[A,B], [A,B], [A,B], [A,B], [A,B]]
-        expected_output = [set(x) for x in expected_output]
+        sched = Scheduler(comp)
+
+        sched.condition_set.add_condition(A, EveryNSteps(1))
+        sched.condition_set.add_condition(B, Any(WhenFinished(A), AfterNCalls(A, 3)))
+
+        termination_conds = {ts: None for ts in TimeScale}
+        termination_conds[TimeScale.RUN] = AfterNTrials(1)
+        termination_conds[TimeScale.TRIAL] = AtStep(10)
+        output = sched.run(termination_conds=termination_conds)
+
+        expected_output = [A, B, A, B, A, B, A, B, A, B]
         assert output == expected_output
 
     def test_10b(self):
+        comp = Composition()
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
         A.is_finished = False
         B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
 
-        c1 = Constraint(A)     # implicit Immediately, Always, Never
-        c2 = Constraint(B, condition_repeat=Any(WhenFinished(A), AfterNCalls(A, 3)))
-        sched = Scheduler({A: 1, B: 2}, set([c1, c2]))
-        output = run_trial(sched, AfterStep(sched, 5))
+        for m in [A, B]:
+            comp.add_mechanism(m)
+        comp.add_projection(A, MappingProjection(), B)
 
-        expected_output = [[A], [A], [A], [A,B], [A,B]]
-        expected_output = [set(x) for x in expected_output]
+        sched = Scheduler(comp)
+
+        sched.condition_set.add_condition(A, EveryNSteps(1))
+        sched.condition_set.add_condition(B, Any(WhenFinished(A), AfterNCalls(A, 3)))
+
+        termination_conds = {ts: None for ts in TimeScale}
+        termination_conds[TimeScale.RUN] = AfterNTrials(1)
+        termination_conds[TimeScale.TRIAL] = AtStep(10)
+        output = sched.run(termination_conds=termination_conds)
+
+        expected_output = [A, A, A, B, A, B, A, B, A, B]
         assert output == expected_output
 
     def test_10c(self):
+        comp = Composition()
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
         A.is_finished = True
         B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
 
-        c1 = Constraint(A)     # implicit Immediately, Always, Never
-        c2 = Constraint(B, condition_repeat=All(WhenFinished(A), AfterNCalls(A, 3)))
-        sched = Scheduler({A: 1, B: 2}, set([c1, c2]))
-        output = run_trial(sched, AfterStep(sched, 5))
+        for m in [A, B]:
+            comp.add_mechanism(m)
+        comp.add_projection(A, MappingProjection(), B)
 
-        expected_output = [[A], [A], [A], [A,B], [A,B]]
-        expected_output = [set(x) for x in expected_output]
+        sched = Scheduler(comp)
+
+        sched.condition_set.add_condition(A, EveryNSteps(1))
+        sched.condition_set.add_condition(B, All(WhenFinished(A), AfterNCalls(A, 3)))
+
+        termination_conds = {ts: None for ts in TimeScale}
+        termination_conds[TimeScale.RUN] = AfterNTrials(1)
+        termination_conds[TimeScale.TRIAL] = AtStep(10)
+        output = sched.run(termination_conds=termination_conds)
+
+        expected_output = [A, A, A, B, A, B, A, B, A, B]
         assert output == expected_output
 
     def test_10d(self):
+        comp = Composition()
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
         A.is_finished = False
         B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
 
-        c1 = Constraint(A)     # implicit Immediately, Always, Never
-        c2 = Constraint(B, condition_repeat=All(WhenFinished(A), AfterNCalls(A, 3)))
-        sched = Scheduler({A: 1, B: 2}, set([c1, c2]))
-        output = run_trial(sched, AfterStep(sched, 5))
+        for m in [A, B]:
+            comp.add_mechanism(m)
+        comp.add_projection(A, MappingProjection(), B)
 
-        expected_output = [[A], [A], [A], [A], [A]]
-        expected_output = [set(x) for x in expected_output]
-        assert output == expected_output
+        sched = Scheduler(comp)
 
-    def test_11(self):
-        A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
-        A.is_finished = True
-        B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
-        C = TransferMechanism(function = Linear(intercept = 1.5), name = 'C')
-        sched = Scheduler({A: 1, B: 2, C: 3})
+        sched.condition_set.add_condition(A, EveryNSteps(1))
+        sched.condition_set.add_condition(B, All(WhenFinished(A), AfterNCalls(A, 3)))
 
-        c1 = Constraint(A)
-        c2 = Constraint(B, condition_repeat=EveryNCalls(A, 2, owner=B))
-        c3 = Constraint(C, condition_activation=All(WhenFinished(A), AfterNCalls(B, 3)))
-        sched.add_constraints(set([c1, c2, c3]))
+        termination_conds = {ts: None for ts in TimeScale}
+        termination_conds[TimeScale.RUN] = AfterNTrials(1)
+        termination_conds[TimeScale.TRIAL] = AtStep(10)
+        output = sched.run(termination_conds=termination_conds)
 
-        output = run_trial(sched, AfterStep(sched, 10))
-
-        expected_output = [[A], [A], [A,B], [A], [A,B], [A], [A,B], [A,C], [A,B,C], [A,C]]
-        expected_output = [set(x) for x in expected_output]
+        expected_output = [A, A, A, A, A, A, A, A, A, A]
         assert output == expected_output
 
     ########################################
@@ -625,12 +661,40 @@ class TestScheduler:
         #pprint.pprint(output)
         assert output == expected_output
 
+    # this is test 11 of original constraint_scheduler.py
+    def test_triangle_comp_4(self):
+        comp = Composition()
+        A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
+        A.is_finished = True
+        B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
+        C = TransferMechanism(function = Linear(intercept = 1.5), name = 'C')
+
+        for m in [A, B, C]:
+            comp.add_mechanism(m)
+        comp.add_projection(A, MappingProjection(), B)
+        comp.add_projection(A, MappingProjection(), C)
+
+        sched = Scheduler(comp)
+
+        sched.condition_set.add_condition(A, EveryNSteps(1))
+        sched.condition_set.add_condition(B, EveryNCalls(A, 2))
+        sched.condition_set.add_condition(C, All(WhenFinished(A), AfterNCalls(B, 3)))
+
+        termination_conds = {ts: None for ts in TimeScale}
+        termination_conds[TimeScale.RUN] = AfterNTrials(1)
+        termination_conds[TimeScale.TRIAL] = AfterNCalls(C, 1)
+        output = sched.run(termination_conds=termination_conds)
+
+        expected_output = [A, A, B, A, A, B, A, A, set([B,C])]
+        assert output == expected_output
+
 
     #   inverted triangle:           A   B
     #                                 \ /
     #                                  C
 
     # this is test 4 of original constraint_scheduler.py
+    # this test has an implicit priority set of A<B !
     def test_invtriangle_comp_1(self):
         comp = Composition()
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
@@ -654,5 +718,33 @@ class TestScheduler:
 
         expected_output = [
             A, set([A,B]), A, C, set([A,B]), C, A, C, set([A,B]), C
+        ]
+        assert output == expected_output
+
+    # this is test 5 of original constraint_scheduler.py
+    # this test has an implicit priority set of A<B !
+    def test_invtriangle_comp_2(self):
+        comp = Composition()
+        A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
+        B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
+        C = TransferMechanism(function = Linear(intercept = 1.5), name = 'C')
+        for m in [A,B,C]:
+            comp.add_mechanism(m)
+        comp.add_projection(A, MappingProjection(), C)
+        comp.add_projection(B, MappingProjection(), C)
+
+        sched = Scheduler(comp)
+
+        sched.condition_set.add_condition(A, EveryNSteps(1))
+        sched.condition_set.add_condition(B, EveryNCalls(A, 2))
+        sched.condition_set.add_condition(C, All(AfterNCalls(A, 3), AfterNCalls(B, 3)))
+
+        termination_conds = {ts: None for ts in TimeScale}
+        termination_conds[TimeScale.RUN] = AfterNTrials(1)
+        termination_conds[TimeScale.TRIAL] = AfterNCalls(C, 2, time_scale=TimeScale.TRIAL)
+        output = sched.run(termination_conds=termination_conds)
+
+        expected_output = [
+            A, set([A,B]), A, set([A,B]), A, set([A,B]), C, A, C
         ]
         assert output == expected_output

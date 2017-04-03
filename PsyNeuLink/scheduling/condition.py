@@ -205,6 +205,18 @@ class AfterNCalls(Condition):
             return num_calls >= n
         super().__init__(dependency, func, n)
 
+class AfterNCallsCombined(Condition):
+    def __init__(self, dependency_list, n, time_scale=TimeScale.TRIAL):
+        def func(dependency_list, n):
+            if self.scheduler is None:
+                raise ConditionError('{0}: self.scheduler is None - scheduler must be assigned'.format(type(self).__name__))
+            count_sum = 0
+            for d in dependency_list:
+                count_sum += self.scheduler.counts_current[time_scale][d]
+                logger.debug('{0} has reached {1} num_calls in {2}'.format(d, self.scheduler.counts_current[time_scale][d], time_scale.name))
+            return count_sum >= n
+        super().__init__(dependency_list, func, n)
+
 class AfterNTrials(Condition):
     def __init__(self, n):
         def func(n):
