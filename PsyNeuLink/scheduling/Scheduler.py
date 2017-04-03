@@ -141,7 +141,8 @@ class Scheduler(object):
                         # parallelization
                         logger.debug('adding children of {0}: {1} to consideration'.format(current_mech, [str(c) for c in self.composition.graph.get_children(current_mech)]))
                         for child in self.composition.graph.get_children(current_mech):
-                            next_consideration_queue.append(child)
+                            if child not in next_consideration_queue:
+                                next_consideration_queue.append(child)
 
                     if len(cur_time_step_exec) > 1:
                         execution_queue.append(cur_time_step_exec)

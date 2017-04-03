@@ -117,14 +117,14 @@ class All(Condition):
         for cond in self.dependencies:
             logger.debug('schedule setter: Setting scheduler of {0} to ({1})'.format(cond, value))
             if cond.scheduler is None:
-                cond._scheduler = value
+                cond.scheduler = value
 
     @Condition.owner.setter
     def owner(self, value):
         for cond in self.dependencies:
             logger.debug('owner setter: Setting owner of {0} to ({1})'.format(cond, value))
             if cond.owner is None:
-                cond._owner = value
+                cond.owner = value
 
     def satis(self, conds):
         for cond in conds:
@@ -150,14 +150,14 @@ class Any(Condition):
         for cond in self.dependencies:
             logger.debug('schedule setter: Setting scheduler of {0} to ({1})'.format(cond, value))
             if cond.scheduler is None:
-                cond._scheduler = value
+                cond.scheduler = value
 
     @Condition.owner.setter
     def owner(self, value):
         for cond in self.dependencies:
             logger.debug('owner setter: Setting owner of {0} to ({1})'.format(cond, value))
             if cond.owner is None:
-                cond._owner = value
+                cond.owner = value
 
     def satis(self, conds):
         for cond in conds:
