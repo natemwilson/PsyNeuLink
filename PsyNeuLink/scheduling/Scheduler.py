@@ -23,6 +23,8 @@ class Scheduler(object):
         self.composition = composition
         self.condition_set = condition_set if condition_set is not None else ConditionSet(scheduler=self)
         self.priorities = priorities
+        # used for JustRan condition
+        self.execution_queue = []
 
         self._init_counts()
 
@@ -109,7 +111,7 @@ class Scheduler(object):
                 next_consideration_queue = []
 
                 self._reset_count(self.counts_current, TimeScale.PASS)
-                exeuction_queue_has_changed = False
+                execution_queue_has_changed = False
                 while len(consideration_queue) > 0 and not termination_conds[TimeScale.TRIAL].is_satisfied() and not termination_conds[TimeScale.RUN].is_satisfied():
                     cur_time_step_exec = set()
                     logger.debug('trial, itercount {0}, consideration_queue {1}'.format(self.counts_current[TimeScale.TRIAL][self], ' '.join([str(x) for x in consideration_queue])))
@@ -122,7 +124,7 @@ class Scheduler(object):
                         if self.condition_set.conditions[current_mech].is_satisfied():
                             logger.debug('adding {0} to execution list'.format(current_mech))
                             cur_time_step_exec.add(current_mech)
-                            exeuction_queue_has_changed = True
+                            execution_queue_has_changed = True
 
                             for ts in TimeScale:
                                 self.counts_current[ts][current_mech] += 1
@@ -145,23 +147,23 @@ class Scheduler(object):
                                 next_consideration_queue.append(child)
 
                     if len(cur_time_step_exec) > 1:
-                        execution_queue.append(cur_time_step_exec)
+                        self.execution_queue.append(cur_time_step_exec)
                     elif len(cur_time_step_exec) == 1:
-                        execution_queue.append(cur_time_step_exec.pop())
+                        self.execution_queue.append(cur_time_step_exec.pop())
                     consideration_queue = next_consideration_queue
                     next_consideration_queue = []
                     logger.debug(consideration_queue)
 
-                if not exeuction_queue_has_changed:
-                    execution_queue.append(set())
+                if not execution_queue_has_changed:
+                    self.execution_queue.append(set())
                     for ts in TimeScale:
                         self.counts_current[ts][self] += 1
 
                 # can execute the execution_queue here
-                logger.info(' '.join([str(x) for x in execution_queue]))
+                logger.info(' '.join([str(x) for x in self.execution_queue]))
                 self.counts_total[TimeScale.PASS] += 1
 
             self.counts_total[TimeScale.TRIAL] += 1
 
         self.counts_total[TimeScale.RUN] += 1
-        return execution_queue
+        return self.execution_queue

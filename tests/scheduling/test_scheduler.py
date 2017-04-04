@@ -566,6 +566,75 @@ class TestScheduler:
         expected_output = [A, A, B, A, A, B]
         assert output == expected_output
 
+    def test_linearcomp_ABB(self):
+        comp = Composition()
+        A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
+        B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
+        for m in [A, B]:
+            comp.add_mechanism(m)
+        comp.add_projection(A, MappingProjection(), B)
+
+        sched = Scheduler(comp)
+
+        sched.condition_set.add_condition(A, Any(AtStep(0), EveryNCalls(B, 2)))
+        sched.condition_set.add_condition(B, Any(EveryNCalls(A, 1), EveryNCalls(B, 1)))
+
+        termination_conds = {ts: None for ts in TimeScale}
+        termination_conds[TimeScale.RUN] = AfterNTrials(1)
+        termination_conds[TimeScale.TRIAL] = AfterNCalls(B, 8, time_scale=TimeScale.TRIAL)
+        output = sched.run(termination_conds=termination_conds)
+
+        expected_output = [A, B, B, A, B, B, A, B, B, A, B, B]
+        assert output == expected_output
+
+    def test_linearcomp_ABBCC(self):
+        comp = Composition()
+        A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
+        B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
+        C = TransferMechanism(function = Linear(intercept = 1.5), name = 'C')
+        for m in [A,B,C]:
+            comp.add_mechanism(m)
+        comp.add_projection(A, MappingProjection(), B)
+        comp.add_projection(B, MappingProjection(), C)
+
+        sched = Scheduler(comp)
+
+        sched.condition_set.add_condition(A, Any(AtStep(0), EveryNCalls(C, 2)))
+        sched.condition_set.add_condition(B, Any(JustRan(A), JustRan(B)))
+        sched.condition_set.add_condition(C, Any(EveryNCalls(B, 2), JustRan(C)))
+
+        termination_conds = {ts: None for ts in TimeScale}
+        termination_conds[TimeScale.RUN] = AfterNTrials(1)
+        termination_conds[TimeScale.TRIAL] = AfterNCalls(C, 4, time_scale=TimeScale.TRIAL)
+        output = sched.run(termination_conds=termination_conds)
+
+        expected_output = [A, B, B, C, C, A, B, B, C, C]
+        assert output == expected_output
+
+    def test_linearcomp_ABCBC(self):
+        comp = Composition()
+        A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
+        B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
+        C = TransferMechanism(function = Linear(intercept = 1.5), name = 'C')
+        for m in [A,B,C]:
+            comp.add_mechanism(m)
+        comp.add_projection(A, MappingProjection(), B)
+        comp.add_projection(B, MappingProjection(), C)
+
+        sched = Scheduler(comp)
+
+        sched.condition_set.add_condition(A, Any(AtStep(0), EveryNCalls(C, 2)))
+        sched.condition_set.add_condition(B, Any(EveryNCalls(A, 1), EveryNCalls(C, 1)))
+        sched.condition_set.add_condition(C, EveryNCalls(B, 1))
+
+        termination_conds = {ts: None for ts in TimeScale}
+        termination_conds[TimeScale.RUN] = AfterNTrials(1)
+        termination_conds[TimeScale.TRIAL] = AfterNCalls(C, 4, time_scale=TimeScale.TRIAL)
+        output = sched.run(termination_conds=termination_conds)
+
+        expected_output = [A, B, C, B, C, A, B, C, B, C]
+        assert output == expected_output
+
     ########################################
     # tests with small branching compositions
     ########################################
@@ -686,6 +755,7 @@ class TestScheduler:
         output = sched.run(termination_conds=termination_conds)
 
         expected_output = [A, A, B, A, A, B, A, A, set([B,C])]
+        pprint.pprint(output)
         assert output == expected_output
 
 
@@ -719,6 +789,7 @@ class TestScheduler:
         expected_output = [
             A, set([A,B]), A, C, set([A,B]), C, A, C, set([A,B]), C
         ]
+        pprint.pprint(output)
         assert output == expected_output
 
     # this is test 5 of original constraint_scheduler.py

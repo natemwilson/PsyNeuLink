@@ -251,6 +251,18 @@ class EveryNCalls(Condition):
             return num_calls >= n
         super().__init__(dependency, func, n)
 
+class JustRan(Condition):
+    def __init__(self, dependency):
+        def func(dependency):
+            if self.scheduler is None:
+                raise ConditionError('{0}: self.scheduler is None - scheduler must be assigned'.format(type(self).__name__))
+            logger.debug('checking if {0} in previous execution step set'.format(dependency))
+            if isinstance(self.scheduler.execution_queue[-1], set):
+                return dependency in self.scheduler.execution_queue[-1]
+            else:
+                return dependency == self.scheduler.execution_queue[-1]
+        super().__init__(dependency, func)
+
 class WhenFinished(Condition):
     def __init__(self, dependency):
         def func(dependency):
