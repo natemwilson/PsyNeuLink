@@ -10,15 +10,6 @@ from PsyNeuLink.scheduling.condition import *
 
 logger = logging.getLogger(__name__)
 
-def run_trial(scheduler, condition_termination):
-    output = []
-    for time_step in scheduler.run_trial(condition_termination):
-        output.append(time_step)
-        for mech in time_step:
-            # simulate running the mechanism
-            mech.execute()
-    return output
-
 class TestScheduler:
     def test_Any_end_before_one_finished(self):
         comp = Composition()
@@ -193,6 +184,58 @@ class TestScheduler:
         #expected_output = [[A], [A], [A,B], [A], [A,B], [A,C], [A,B,C], [A,C], [A,B,C], [A,C]]
         expected_output = [
             A, A, B, A, A, B, C, A, C, A, B, C
+        ]
+        assert output == expected_output
+
+    def test_WhenFinishedAll_1(self):
+        comp = Composition()
+        A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
+        A.is_finished = True
+        B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
+        B.is_finished = True
+        C = TransferMechanism(function = Linear(intercept = 1.5), name = 'C')
+        for m in [A,B,C]:
+            comp.add_mechanism(m)
+        comp.add_projection(A, MappingProjection(), C)
+        comp.add_projection(B, MappingProjection(), C)
+        sched = Scheduler(comp)
+
+        sched.condition_set.add_condition(A, EveryNSteps(1))
+        sched.condition_set.add_condition(B, EveryNSteps(1))
+        sched.condition_set.add_condition(C, WhenFinishedAll(A, B))
+
+        termination_conds = {ts: None for ts in TimeScale}
+        termination_conds[TimeScale.RUN] = AfterNTrials(1)
+        termination_conds[TimeScale.TRIAL] = AfterNCalls(C, 1)
+        output = sched.run(termination_conds=termination_conds)
+        expected_output = [
+            set([A, B]), C
+        ]
+        assert output == expected_output
+
+    def test_WhenFinishedAll_2(self):
+        comp = Composition()
+        A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
+        A.is_finished = False
+        B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
+        B.is_finished = True
+        C = TransferMechanism(function = Linear(intercept = 1.5), name = 'C')
+        for m in [A,B,C]:
+            comp.add_mechanism(m)
+        comp.add_projection(A, MappingProjection(), C)
+        comp.add_projection(B, MappingProjection(), C)
+        sched = Scheduler(comp)
+
+        sched.condition_set.add_condition(A, EveryNSteps(1))
+        sched.condition_set.add_condition(B, EveryNSteps(1))
+        sched.condition_set.add_condition(C, WhenFinishedAll(A, B))
+
+        termination_conds = {ts: None for ts in TimeScale}
+        termination_conds[TimeScale.RUN] = AfterNTrials(1)
+        termination_conds[TimeScale.TRIAL] = AfterNCalls(A, 5)
+        output = sched.run(termination_conds=termination_conds)
+        expected_output = [
+            set([A, B]), set([A, B]), set([A, B]), set([A, B]), set([A, B]),
         ]
         assert output == expected_output
 
@@ -871,7 +914,7 @@ class TestScheduler:
 
         sched.condition_set.add_condition(A, EveryNSteps(1))
         sched.condition_set.add_condition(B, EveryNCalls(A, 2))
-        sched.condition_set.add_condition(C, EveryNSteps(2))
+        sched.condition_set.add_condition(C, EveryNCalls(A, 2))
         sched.condition_set.add_condition(D, All(EveryNCalls(B, 2), EveryNCalls(C, 2)))
 
         termination_conds = {ts: None for ts in TimeScale}

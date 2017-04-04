@@ -1,6 +1,6 @@
 from collections import OrderedDict, Iterable
 import itertools
-from PsyNeuLink.scheduling.constraint_scheduler import Scheduler
+from PsyNeuLink.scheduling.Scheduler import Scheduler
 from PsyNeuLink.Components.Functions.Function import LINEAR_MATRIX_FUNCTION
 
 class Edge(object):
@@ -75,7 +75,7 @@ class Composition(object):
         # Constructor for Compositions.
         # Creates an empty Composition which has the following elements:
         # - self.G is an OrderedDict that represents the Composition's graph.
-        #   Keys are mechanisms and values are lists of Connections that 
+        #   Keys are mechanisms and values are lists of Connections that
         #   terminate on that mechanism.
         # - self.scheduler is a Scheduler object (see PsyNeuLink.scheduler)
         #   that manages the order of mechanisms that fire on a given trial.
@@ -103,7 +103,7 @@ class Composition(object):
         self.explicit_output_mechanisms = [] # Need to track to know which to leave untouched
         self.all_output_mechanisms = []
         self.target_mechanisms = [] # Do not need to track explicit as they mush be explicit
-        self.sched = Scheduler()
+        self.sched = Scheduler(self)
 
     def add_mechanism(self, mech):
         ########
@@ -277,6 +277,7 @@ class Composition(object):
         if recurrent_init:
             self.validate_feed_dict(recurrent_init, self.recurrent_init_mechanisms, "Recurrent Init")
 
+        '''
         for current_component in scheduler.run_trial():
             if current_component.name != "Clock":
                 # print("NAME: ",current_component.name)
@@ -295,3 +296,4 @@ class Composition(object):
             else:
                 current_component.execute()
                 # print(current_component.value)
+        '''

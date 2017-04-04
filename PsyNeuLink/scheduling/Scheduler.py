@@ -132,34 +132,48 @@ class Scheduler(object):
                     cur_time_step_exec = set()
                     cur_consideration_set = self.consideration_queue[cur_index_consideration_queue]
                     logger.debug('trial, itercount {0}, consideration_queue {1}'.format(self.counts_current[TimeScale.TRIAL][self], ' '.join([str(x) for x in cur_consideration_set])))
-                    for current_mech in cur_consideration_set:
-                        for m in self.counts_useable:
-                            logger.debug('Counts of {0} useable by'.format(m))
-                            for m2 in self.counts_useable[m]:
-                                logger.debug('\t{0}: {1}'.format(m2, self.counts_useable[m][m2]))
 
-                        if self.condition_set.conditions[current_mech].is_satisfied():
-                            logger.debug('adding {0} to execution list'.format(current_mech))
-                            cur_time_step_exec.add(current_mech)
-                            execution_queue_has_changed = True
-
-                            for ts in TimeScale:
-                                self.counts_current[ts][current_mech] += 1
-                                self.counts_current[ts][self] += 1
-
-                            # current_mech's mechanism is added to the execution queue, so we now need to
-                            # reset all of the counts useable by current_mech's mechanism to 0
+                    # do-while, on cur_consideration_set_has_changed
+                    while True:
+                        cur_consideration_set_has_changed = False
+                        for current_mech in cur_consideration_set:
+                            logger.debug('cur time_step exec: {0}'.format(cur_time_step_exec))
                             for m in self.counts_useable:
-                                self.counts_useable[m][current_mech] = 0
-                            # and increment all of the counts of current_mech's mechanism useable by other
-                            # mechanisms by 1
-                            for m in self.counts_useable:
-                                self.counts_useable[current_mech][m] += 1
+                                logger.debug('Counts of {0} useable by'.format(m))
+                                for m2 in self.counts_useable[m]:
+                                    logger.debug('\t{0}: {1}'.format(m2, self.counts_useable[m][m2]))
 
-                    if len(cur_time_step_exec) > 1:
-                        self.execution_queue.append(cur_time_step_exec)
-                    elif len(cur_time_step_exec) == 1:
-                        self.execution_queue.append(cur_time_step_exec.pop())
+                            if self.condition_set.conditions[current_mech].is_satisfied():
+                                if current_mech not in cur_time_step_exec:
+                                    logger.debug('adding {0} to execution list'.format(current_mech))
+                                    logger.debug('cur time_step exec pre add: {0}'.format(cur_time_step_exec))
+                                    cur_time_step_exec.add(current_mech)
+                                    logger.debug('cur time_step exec post add: {0}'.format(cur_time_step_exec))
+                                    execution_queue_has_changed = True
+                                    cur_consideration_set_has_changed = True
+
+                                    for ts in TimeScale:
+                                        self.counts_current[ts][current_mech] += 1
+
+                                    # current_mech's mechanism is added to the execution queue, so we now need to
+                                    # reset all of the counts useable by current_mech's mechanism to 0
+                                    for m in self.counts_useable:
+                                        self.counts_useable[m][current_mech] = 0
+                                    # and increment all of the counts of current_mech's mechanism useable by other
+                                    # mechanisms by 1
+                                    for m in self.counts_useable:
+                                        self.counts_useable[current_mech][m] += 1
+                        # do-while condition
+                        if not cur_consideration_set_has_changed:
+                            break
+
+                    if len(cur_time_step_exec) >= 1:
+                        if len(cur_time_step_exec) > 1:
+                            self.execution_queue.append(cur_time_step_exec)
+                        else:
+                            self.execution_queue.append(cur_time_step_exec.pop())
+                        for ts in TimeScale:
+                            self.counts_current[ts][self] += 1
 
                     cur_index_consideration_queue += 1
 
