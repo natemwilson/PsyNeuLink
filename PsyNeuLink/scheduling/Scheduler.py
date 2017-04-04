@@ -1,5 +1,7 @@
 import logging
 
+from toposort import toposort
+
 from PsyNeuLink.Globals.TimeScale import TimeScale
 from PsyNeuLink.scheduling.condition import ConditionSet, Never
 
@@ -25,8 +27,20 @@ class Scheduler(object):
         self.priorities = priorities
         # used for JustRan condition
         self.execution_queue = []
+        self.consideration_queue = []
 
+        self._init_consideration_queue()
         self._init_counts()
+
+    def _init_consideration_queue(self):
+        dependencies = {}
+        for vert in self.composition.graph.vertices:
+            dependencies[vert.mechanism] = set()
+            for parent in self.composition.graph.get_parents(vert.mechanism):
+                dependencies[vert.mechanism].add(parent)
+
+        self.consideration_queue = list(toposort(dependencies))
+        logger.debug('Consideration queue: {0}'.format(self.consideration_queue))
 
     def _init_counts(self):
         # stores the total number of TimeScales that have occurred during the lifetime of this scheduler
@@ -105,17 +119,20 @@ class Scheduler(object):
             self.counts_useable = {vert.mechanism: {vert.mechanism: 0 for vert in self.composition.graph.vertices} for vert in self.composition.graph.vertices}
             self._reset_count(self.counts_current, TimeScale.TRIAL)
             while not termination_conds[TimeScale.TRIAL].is_satisfied() and not termination_conds[TimeScale.RUN].is_satisfied():
-                # this queue is used to determine which components to run next, and roughly uses a BFS
-                # add source nodes into the consideration queue to start
-                consideration_queue = [vert.mechanism for vert in self.composition.graph.vertices if len(self.composition.graph.get_incoming(vert.mechanism)) == 0]
-                next_consideration_queue = []
-
                 self._reset_count(self.counts_current, TimeScale.PASS)
                 execution_queue_has_changed = False
-                while len(consideration_queue) > 0 and not termination_conds[TimeScale.TRIAL].is_satisfied() and not termination_conds[TimeScale.RUN].is_satisfied():
+
+                cur_index_consideration_queue = 0
+
+                while (
+                        cur_index_consideration_queue < len(self.consideration_queue)
+                        and not termination_conds[TimeScale.TRIAL].is_satisfied()
+                        and not termination_conds[TimeScale.RUN].is_satisfied()
+                        ):
                     cur_time_step_exec = set()
-                    logger.debug('trial, itercount {0}, consideration_queue {1}'.format(self.counts_current[TimeScale.TRIAL][self], ' '.join([str(x) for x in consideration_queue])))
-                    for current_mech in consideration_queue:
+                    cur_consideration_set = self.consideration_queue[cur_index_consideration_queue]
+                    logger.debug('trial, itercount {0}, consideration_queue {1}'.format(self.counts_current[TimeScale.TRIAL][self], ' '.join([str(x) for x in cur_consideration_set])))
+                    for current_mech in cur_consideration_set:
                         for m in self.counts_useable:
                             logger.debug('Counts of {0} useable by'.format(m))
                             for m2 in self.counts_useable[m]:
@@ -139,20 +156,12 @@ class Scheduler(object):
                             for m in self.counts_useable:
                                 self.counts_useable[current_mech][m] += 1
 
-                        # priorities could be used here, or alternatively using sets and checking for
-                        # parallelization
-                        logger.debug('adding children of {0}: {1} to consideration'.format(current_mech, [str(c) for c in self.composition.graph.get_children(current_mech)]))
-                        for child in self.composition.graph.get_children(current_mech):
-                            if child not in next_consideration_queue:
-                                next_consideration_queue.append(child)
-
                     if len(cur_time_step_exec) > 1:
                         self.execution_queue.append(cur_time_step_exec)
                     elif len(cur_time_step_exec) == 1:
                         self.execution_queue.append(cur_time_step_exec.pop())
-                    consideration_queue = next_consideration_queue
-                    next_consideration_queue = []
-                    logger.debug(consideration_queue)
+
+                    cur_index_consideration_queue += 1
 
                 if not execution_queue_has_changed:
                     self.execution_queue.append(set())

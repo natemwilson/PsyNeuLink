@@ -545,7 +545,7 @@ class TestScheduler:
     ########################################
     # tests with linear compositions
     ########################################
-    def test_linearcomp_AAB(self):
+    def test_linear_AAB(self):
         comp = Composition()
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
         B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
@@ -566,7 +566,7 @@ class TestScheduler:
         expected_output = [A, A, B, A, A, B]
         assert output == expected_output
 
-    def test_linearcomp_ABB(self):
+    def test_linear_ABB(self):
         comp = Composition()
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
         B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
@@ -587,7 +587,7 @@ class TestScheduler:
         expected_output = [A, B, B, A, B, B, A, B, B, A, B, B]
         assert output == expected_output
 
-    def test_linearcomp_ABBCC(self):
+    def test_linear_ABBCC(self):
         comp = Composition()
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
         B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
@@ -611,7 +611,7 @@ class TestScheduler:
         expected_output = [A, B, B, C, C, A, B, B, C, C]
         assert output == expected_output
 
-    def test_linearcomp_ABCBC(self):
+    def test_linear_ABCBC(self):
         comp = Composition()
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
         B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
@@ -642,7 +642,7 @@ class TestScheduler:
     #   triangle:         A
     #                    / \
     #                   B   C
-    def test_triangle_comp_1(self):
+    def test_triangle_1(self):
         comp = Composition()
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
         B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
@@ -671,7 +671,7 @@ class TestScheduler:
         #pprint.pprint(output)
         assert output == expected_output
 
-    def test_triangle_comp_2(self):
+    def test_triangle_2(self):
         comp = Composition()
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
         B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
@@ -703,7 +703,7 @@ class TestScheduler:
         #pprint.pprint(output)
         assert output == expected_output
 
-    def test_triangle_comp_3(self):
+    def test_triangle_3(self):
         comp = Composition()
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
         B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
@@ -731,7 +731,7 @@ class TestScheduler:
         assert output == expected_output
 
     # this is test 11 of original constraint_scheduler.py
-    def test_triangle_comp_4(self):
+    def test_triangle_4(self):
         comp = Composition()
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
         A.is_finished = True
@@ -755,9 +755,8 @@ class TestScheduler:
         output = sched.run(termination_conds=termination_conds)
 
         expected_output = [A, A, B, A, A, B, A, A, set([B,C])]
-        pprint.pprint(output)
+        #pprint.pprint(output)
         assert output == expected_output
-
 
     #   inverted triangle:           A   B
     #                                 \ /
@@ -765,7 +764,7 @@ class TestScheduler:
 
     # this is test 4 of original constraint_scheduler.py
     # this test has an implicit priority set of A<B !
-    def test_invtriangle_comp_1(self):
+    def test_invtriangle_1(self):
         comp = Composition()
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
         B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
@@ -789,12 +788,12 @@ class TestScheduler:
         expected_output = [
             A, set([A,B]), A, C, set([A,B]), C, A, C, set([A,B]), C
         ]
-        pprint.pprint(output)
+        #pprint.pprint(output)
         assert output == expected_output
 
     # this is test 5 of original constraint_scheduler.py
     # this test has an implicit priority set of A<B !
-    def test_invtriangle_comp_2(self):
+    def test_invtriangle_2(self):
         comp = Composition()
         A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
         B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
@@ -817,5 +816,70 @@ class TestScheduler:
 
         expected_output = [
             A, set([A,B]), A, set([A,B]), A, set([A,B]), C, A, C
+        ]
+        assert output == expected_output
+
+
+    #   checkmark:                   A
+    #                                 \
+    #                                  B   C
+    #                                   \ /
+    #                                    D
+    # testing toposort
+    def test_checkmark_1(self):
+        comp = Composition()
+        A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
+        B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
+        C = TransferMechanism(function = Linear(intercept = 1.5), name = 'C')
+        D = TransferMechanism(function = Linear(intercept = .5), name = 'D')
+        for m in [A,B,C,D]:
+            comp.add_mechanism(m)
+        comp.add_projection(A, MappingProjection(), B)
+        comp.add_projection(B, MappingProjection(), D)
+        comp.add_projection(C, MappingProjection(), D)
+
+        sched = Scheduler(comp)
+
+        sched.condition_set.add_condition(A, Always())
+        sched.condition_set.add_condition(B, Always())
+        sched.condition_set.add_condition(C, Always())
+        sched.condition_set.add_condition(D, Always())
+
+        termination_conds = {ts: None for ts in TimeScale}
+        termination_conds[TimeScale.RUN] = AfterNTrials(1)
+        termination_conds[TimeScale.TRIAL] = AfterNCalls(D, 1, time_scale=TimeScale.TRIAL)
+        output = sched.run(termination_conds=termination_conds)
+
+        expected_output = [
+            set([A, C]), B, D
+        ]
+        assert output == expected_output
+
+    def test_checkmark_2(self):
+        comp = Composition()
+        A = TransferMechanism(function = Linear(slope=5.0, intercept = 2.0), name = 'A')
+        B = TransferMechanism(function = Linear(intercept = 4.0), name = 'B')
+        C = TransferMechanism(function = Linear(intercept = 1.5), name = 'C')
+        D = TransferMechanism(function = Linear(intercept = .5), name = 'D')
+        for m in [A,B,C,D]:
+            comp.add_mechanism(m)
+        comp.add_projection(A, MappingProjection(), B)
+        comp.add_projection(B, MappingProjection(), D)
+        comp.add_projection(C, MappingProjection(), D)
+
+        sched = Scheduler(comp)
+
+        sched.condition_set.add_condition(A, EveryNSteps(1))
+        sched.condition_set.add_condition(B, EveryNCalls(A, 2))
+        sched.condition_set.add_condition(C, EveryNSteps(2))
+        sched.condition_set.add_condition(D, All(EveryNCalls(B, 2), EveryNCalls(C, 2)))
+
+        termination_conds = {ts: None for ts in TimeScale}
+        termination_conds[TimeScale.RUN] = AfterNTrials(1)
+        termination_conds[TimeScale.TRIAL] = AfterNCalls(D, 1, time_scale=TimeScale.TRIAL)
+        output = sched.run(termination_conds=termination_conds)
+
+        expected_output = [
+            A, set([A, C]), B, A, set([A, C]), B, D
         ]
         assert output == expected_output
